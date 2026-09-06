@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Icon, type IconName } from './Icon';
 import { Button } from './Button';
+import { useT } from '../lib/i18n';
 import { usePrefersReducedMotion } from '../anim/hooks';
 
 /** A shimmer placeholder. Only `transform` animates, so it costs one layer. */
@@ -18,8 +19,9 @@ export function Skeleton({ width, height = 14, radius = 8, className, style }: {
 }
 
 export function EmptyState({ icon = 'sparkle', title, body, action, tone = 'calm' }: {
-  icon?: IconName; title: string; body?: ReactNode; action?: ReactNode; tone?: 'calm' | 'good' | 'warn';
+  icon?: IconName; title?: string; body?: ReactNode; action?: ReactNode; tone?: 'calm' | 'good' | 'warn';
 }) {
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   return (
     <motion.div
@@ -36,28 +38,30 @@ export function EmptyState({ icon = 'sparkle', title, body, action, tone = 'calm
       >
         <Icon name={icon} size={26} />
       </motion.span>
-      <h3 className="empty__title">{title}</h3>
+      <h3 className="empty__title">{title ?? t('ui.state.emptyTitle')}</h3>
       {body ? <p className="empty__body">{body}</p> : null}
       {action ? <div className="empty__action">{action}</div> : null}
     </motion.div>
   );
 }
 
-export function ErrorState({ message, onRetry, detail }: { message: string; onRetry?: () => void; detail?: string }) {
+export function ErrorState({ message, onRetry, detail }: { message?: string; onRetry?: () => void; detail?: string }) {
+  const t = useT();
   return (
     <div className="error-state" role="alert">
       <span className="error-state__badge"><Icon name="alert" size={22} /></span>
       <div>
-        <p className="error-state__message">{message}</p>
+        <p className="error-state__message">{message ?? t('ui.state.errorTitle')}</p>
         {detail ? <p className="error-state__detail">{detail}</p> : null}
       </div>
-      {onRetry ? <Button variant="secondary" icon="refresh" onClick={onRetry}>Try again</Button> : null}
+      {onRetry ? <Button variant="secondary" icon="refresh" onClick={onRetry}>{t('common.retry')}</Button> : null}
     </div>
   );
 }
 
 /** Full-screen first paint, before any data has arrived. */
-export function BootScreen({ label = 'Loading' }: { label?: string }) {
+export function BootScreen({ label }: { label?: string }) {
+  const t = useT();
   return (
     <div className="boot">
       <motion.div
@@ -83,7 +87,7 @@ export function BootScreen({ label = 'Loading' }: { label?: string }) {
           />
         </svg>
       </motion.div>
-      <p className="boot__label">{label}</p>
+      <p className="boot__label">{label ?? t('common.loading')}</p>
     </div>
   );
 }

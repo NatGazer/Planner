@@ -5,12 +5,19 @@ export class ApiError extends Error {
   code: string;
   status: number;
   field?: string;
+  /**
+   * The whole detail, not just the field. It carries `key` and `params` — the
+   * translation of the server's message — and `message` is the English the
+   * server logs, kept as the fallback for a key an older client does not know.
+   */
+  detail?: ApiErrorShape['detail'];
   constructor(shape: ApiErrorShape, status: number) {
     super(shape.message);
     this.name = 'ApiError';
     this.code = shape.code;
     this.status = status;
     this.field = shape.detail?.field as string | undefined;
+    this.detail = shape.detail;
   }
 }
 

@@ -12,7 +12,7 @@ const config = require('../config.js');
 function adminOrThrow(ctx, req) {
   const actor = ctx.actorOf(req);
   if (!actor) throw unauthorized();
-  if (actor.role !== 'admin') throw forbidden('This action is for administrators only.');
+  if (actor.role !== 'admin') throw forbidden('This action is for administrators only.', { key: 'server.adminOnly' });
   return { ...actor, display_name: actor.name };
 }
 
@@ -62,18 +62,18 @@ function register(router, ctx) {
   router.get('/api/admin/tasks/:id', async (req, res, params) => {
     adminOrThrow(ctx, req);
     const task = queries.taskById(db, params.id, today());
-    if (!task) throw notFound('That task no longer exists.');
+    if (!task) throw notFound('That task no longer exists.', { key: 'server.taskGone' });
     send(res, 200, { today: today(), task });
   });
 
   router.post('/api/admin/tasks/:id/reschedule', async (req, res, params) => {
     const actor = adminOrThrow(ctx, req);
     const body = await readJson(req);
-    if (!isValidDate(body.dueDate)) throw badRequest('VALIDATION', 'Pick a real calendar date.', { field: 'dueDate' });
+    if (!isValidDate(body.dueDate)) throw badRequest('VALIDATION', 'Pick a real calendar date.', { field: 'dueDate', key: 'server.pickRealDate' });
     const result = db.transaction((tx) => sched.rescheduleTask(tx, {
       taskId: params.id, newDueDate: body.dueDate, reason: body.reason, actor,
     }));
-    if (!result) throw notFound('That task no longer exists.');
+    if (!result) throw notFound('That task no longer exists.', { key: 'server.taskGone' });
     send(res, 200, { task: queries.taskById(db, params.id, today()), changed: !result.unchanged });
   });
 
@@ -115,7 +115,7 @@ function register(router, ctx) {
     adminOrThrow(ctx, req);
     const t = today();
     const equipment = catalog.getEquipment(db, params.id);
-    if (!equipment) throw notFound('That equipment no longer exists.');
+    if (!equipment) throw notFound('That equipment no longer exists.', { key: 'server.equipmentGone' });
     send(res, 200, {
       today: t,
       equipment,
@@ -157,7 +157,7 @@ function register(router, ctx) {
   router.get('/api/admin/rules/:id', async (req, res, params) => {
     adminOrThrow(ctx, req);
     const rule = catalog.getRule(db, params.id);
-    if (!rule) throw notFound('That maintenance task no longer exists.');
+    if (!rule) throw notFound('That maintenance task no longer exists.', { key: 'server.ruleGone' });
     const t = today();
     send(res, 200, {
       today: t,
@@ -201,7 +201,7 @@ function register(router, ctx) {
   router.get('/api/admin/completions/:id', async (req, res, params) => {
     adminOrThrow(ctx, req);
     const c = queries.completionById(db, params.id);
-    if (!c) throw notFound('That completion record no longer exists.');
+    if (!c) throw notFound('That completion record no longer exists.', { key: 'server.completionGone' });
     send(res, 200, { completion: c });
   });
 

@@ -4,24 +4,28 @@ import { Button } from '@ui/components/Button';
 import { SelectField, Switch, TextArea, TextField } from '@ui/components/Field';
 import { useToaster } from '@ui/components/Toaster';
 import { ApiError } from '@ui/lib/api';
-import { addInterval, cadence, longDate, plural, shiftDate } from '@ui/lib/format';
+import { errorMessage } from '@ui/lib/errors';
+import { useT, type StringKey } from '@ui/lib/i18n';
+import { addInterval, cadence, longDate, shiftDate } from '@ui/lib/format';
 import type { EquipmentType, IntervalUnit, MaintenanceRule } from '@ui/lib/types';
 import { adminApi } from '../data';
 
-const UNITS: { value: IntervalUnit; label: string }[] = [
-  { value: 'days', label: 'days' },
-  { value: 'weeks', label: 'weeks' },
-  { value: 'months', label: 'months' },
-  { value: 'years', label: 'years' },
+// Both lists are module-level, so they hold *keys*; the words are resolved
+// with `t` inside the component, where the language is known.
+const UNITS: { value: IntervalUnit; labelKey: StringKey }[] = [
+  { value: 'days', labelKey: 'unit.days' },
+  { value: 'weeks', labelKey: 'unit.weeks' },
+  { value: 'months', labelKey: 'unit.months' },
+  { value: 'years', labelKey: 'unit.years' },
 ];
 
-const PRESETS: { label: string; value: number; unit: IntervalUnit }[] = [
-  { label: 'Weekly', value: 1, unit: 'weeks' },
-  { label: 'Fortnightly', value: 2, unit: 'weeks' },
-  { label: 'Monthly', value: 1, unit: 'months' },
-  { label: 'Quarterly', value: 3, unit: 'months' },
-  { label: 'Twice a year', value: 6, unit: 'months' },
-  { label: 'Yearly', value: 1, unit: 'years' },
+const PRESETS: { labelKey: StringKey; value: number; unit: IntervalUnit }[] = [
+  { labelKey: 'admin.ruleForm.preset.weekly', value: 1, unit: 'weeks' },
+  { labelKey: 'admin.ruleForm.preset.fortnightly', value: 2, unit: 'weeks' },
+  { labelKey: 'admin.ruleForm.preset.monthly', value: 1, unit: 'months' },
+  { labelKey: 'admin.ruleForm.preset.quarterly', value: 3, unit: 'months' },
+  { labelKey: 'admin.ruleForm.preset.twiceAYear', value: 6, unit: 'months' },
+  { labelKey: 'admin.ruleForm.preset.yearly', value: 1, unit: 'years' },
 ];
 
 export interface RuleFormProps {
@@ -40,6 +44,7 @@ export interface RuleFormProps {
  * and tells you how many items are about to get a new schedule.
  */
 export function RuleForm({ open, onClose, onSaved, types, today, existing, defaultTypeId }: RuleFormProps) {
+  const t = useT();
   const toaster = useToaster();
   const [typeId, setTypeId] = useState('');
   const [title, setTitle] = useState('');
@@ -62,8 +67,8 @@ export function RuleForm({ open, onClose, onSaved, types, today, existing, defau
 
   useEffect(() => {
     if (!open) return;
-    const { types: t, today: d } = latest.current;
-    setTypeId(existing?.type.id ?? defaultTypeId ?? t[0]?.id ?? '');
+    const { types: list, today: d } = latest.current;
+    setTypeId(existing?.type.id ?? defaultTypeId ?? list[0]?.id ?? '');
     setTitle(existing?.title ?? '');
     setInstructions(existing?.instructions ?? '');
     setIntervalValue(existing?.intervalValue ?? 3);
@@ -84,7 +89,7 @@ export function RuleForm({ open, onClose, onSaved, types, today, existing, defau
     setFirstDueDate(shiftDate(today, 7));
   }, [open, firstDueDate, today]);
 
-  const type = useMemo(() => types.find((t) => t.id === typeId) ?? null, [types, typeId]);
+  const type = useMemo(() => types.find((et) => et.id === typeId) ?? null, [types, typeId]);
   const frequencyChanged = !!existing && (existing.intervalValue !== intervalValue || existing.intervalUnit !== intervalUnit);
 
   const save = async () => {
@@ -94,8 +99,8 @@ export function RuleForm({ open, onClose, onSaved, types, today, existing, defau
         const { rule } = await adminApi.updateRule(existing.id, {
           title: title.trim(), instructions, intervalValue, intervalUnit, active,
         });
-        toaster.success('Maintenance task updated', frequencyChanged
-          ? 'The new frequency applies to the next occurrence. Pending due dates are unchanged.'
+        toaster.success(t('admin.ruleForm.toast.updated'), frequencyChanged
+          ? t('admin.ruleForm.toast.frequencyBody')
           : rule.title);
         onSaved(rule);
       } else {
@@ -103,15 +108,17 @@ export function RuleForm({ open, onClose, onSaved, types, today, existing, defau
           typeId, title: title.trim(), instructions, intervalValue, intervalUnit, active,
           firstDueDate: useCustomDue ? firstDueDate : null,
         });
-        toaster.success(`"${result.rule.title}" added`, result.tasksOpened
-          ? `${plural(result.tasksOpened, 'item')} of this type now has it scheduled.`
-          : 'No equipment of this type yet — it will be scheduled as soon as you add some.');
+        toaster.success(t('admin.ruleForm.toast.added', { title: result.rule.title }), result.tasksOpened
+          ? t('admin.ruleForm.toast.scheduled', { count: result.tasksOpened })
+          : t('admin.ruleForm.toast.noEquipment'));
         onSaved(result.rule);
       }
       onClose();
     } catch (err) {
-      if (err instanceof ApiError) setError({ field: err.field, message: err.message });
-      else setError({ message: 'Could not save. Please try again.' });
+      setError({
+        field: err instanceof ApiError ? err.field : undefined,
+        message: errorMessage(t, err, 'admin.ruleForm.saveFailed'),
+      });
     } finally { setBusy(false); }
   };
 
@@ -121,14 +128,14 @@ export function RuleForm({ open, onClose, onSaved, types, today, existing, defau
     <Sheet
       open={open}
       onClose={onClose}
-      title={existing ? 'Edit maintenance task' : 'New maintenance task'}
-      subtitle={type ? `For every ${type.name.toLowerCase()}` : undefined}
+      title={existing ? t('admin.ruleForm.title.edit') : t('admin.ruleForm.title.new')}
+      subtitle={type ? t('admin.ruleForm.subtitle', { type: type.name.toLowerCase() }) : undefined}
       size="md"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" loading={busy} disabled={!valid} onClick={save}>
-            {existing ? 'Save changes' : 'Add maintenance task'}
+            {existing ? t('admin.ruleForm.saveChanges') : t('admin.ruleForm.submit')}
           </Button>
         </>
       }
@@ -136,75 +143,73 @@ export function RuleForm({ open, onClose, onSaved, types, today, existing, defau
       <div className="form-grid">
         {!existing ? (
           <SelectField
-            label="Applies to" required value={typeId} onChange={(e) => setTypeId(e.target.value)}
-            options={types.map((t) => ({ value: t.id, label: `${t.name} — ${plural(t.equipmentCount, 'item')}` }))}
-            hint="Every item of this type inherits it, each with its own schedule."
+            label={t('admin.ruleForm.appliesTo')} required value={typeId} onChange={(e) => setTypeId(e.target.value)}
+            options={types.map((et) => ({ value: et.id, label: t('admin.ruleForm.typeOption', { name: et.name, count: et.equipmentCount }) }))}
+            hint={t('admin.ruleForm.appliesToHint')}
             error={error?.field === 'typeId' ? error.message : null}
           />
         ) : null}
         <TextField
-          label="What needs doing" required autoFocus
+          label={t('admin.ruleForm.titleField')} required autoFocus
           value={title} onChange={(e) => setTitle(e.target.value)}
-          placeholder="Replace air filters"
+          placeholder={t('admin.ruleForm.titlePlaceholder')}
           error={error?.field === 'title' ? error.message : null}
         />
       </div>
 
       <TextArea
-        label="Instructions" rows={5}
+        label={t('admin.ruleForm.instructions')} rows={5}
         value={instructions} onChange={(e) => setInstructions(e.target.value)}
-        placeholder="Write it the way you would explain it to someone doing this for the first time."
-        hint="Shown to the worker on their phone, right above the completion form."
+        placeholder={t('admin.ruleForm.instructionsPlaceholder')}
+        hint={t('admin.ruleForm.instructionsHint')}
       />
 
       <div className="cadence-picker">
-        <span className="cadence-picker__label">How often</span>
+        <span className="cadence-picker__label">{t('admin.ruleForm.howOften')}</span>
         <div className="cadence-picker__presets">
           {PRESETS.map((p) => (
             <button
-              key={p.label}
+              key={p.labelKey}
               type="button"
               className={`chip${intervalValue === p.value && intervalUnit === p.unit ? ' is-selected' : ''}`}
               onClick={() => { setIntervalValue(p.value); setIntervalUnit(p.unit); }}
             >
-              {p.label}
+              {t(p.labelKey)}
             </button>
           ))}
         </div>
         <div className="cadence-picker__custom">
-          <span>Every</span>
+          <span>{t('admin.ruleForm.everyPrefix')}</span>
           <input
             type="number" min={1} max={9999} value={intervalValue} className="input input--number"
-            aria-label="Interval value"
+            aria-label={t('admin.ruleForm.intervalValue')}
             onChange={(e) => setIntervalValue(Math.max(1, Math.min(9999, Number(e.target.value) || 1)))}
           />
           <div className="select-wrap select-wrap--inline">
-            <select className="input input--select" aria-label="Interval unit" value={intervalUnit} onChange={(e) => setIntervalUnit(e.target.value as IntervalUnit)}>
-              {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+            <select className="input input--select" aria-label={t('admin.ruleForm.intervalUnit')} value={intervalUnit} onChange={(e) => setIntervalUnit(e.target.value as IntervalUnit)}>
+              {UNITS.map((u) => <option key={u.value} value={u.value}>{t(u.labelKey)}</option>)}
             </select>
           </div>
         </div>
         <p className="cadence-picker__echo">
-          {cadence(intervalValue, intervalUnit)} — after each completion the next one falls due one interval
-          from the day the work was actually done.
+          {t('admin.ruleForm.cadenceEcho', { cadence: cadence(intervalValue, intervalUnit) })}
         </p>
       </div>
 
       <Switch
-        label={active ? 'Active' : 'Deactivated'}
+        label={active ? t('admin.ruleForm.active') : t('admin.ruleForm.deactivated')}
         description={active
-          ? 'Appears in the worker app for every item of this type.'
-          : 'Pending tasks are hidden and keep their dates. History is preserved.'}
+          ? t('admin.ruleForm.activeHint')
+          : t('admin.ruleForm.deactivatedHint')}
         checked={active}
         onChange={setActive}
       />
 
       {existing && frequencyChanged ? (
         <div className="preview preview--warn">
-          <p className="preview__title">Frequency change</p>
+          <p className="preview__title">{t('admin.ruleForm.frequencyChange')}</p>
           <p className="preview__empty">
-            Existing pending tasks keep the due dates they already have. The new interval takes effect from the
-            next occurrence generated after a completion. To move a pending task now, reschedule it explicitly.
+            {t('admin.ruleForm.frequencyChangeBody')}
           </p>
         </div>
       ) : null}
@@ -212,27 +217,27 @@ export function RuleForm({ open, onClose, onSaved, types, today, existing, defau
       {!existing ? (
         <>
           <Switch
-            label="Set the first due date myself"
+            label={t('admin.ruleForm.customDue')}
             description={useCustomDue
-              ? 'Every item of this type will first fall due on the date below.'
-              : `By default the first occurrence falls due ${longDate(addInterval(today, intervalValue, intervalUnit))}.`}
+              ? t('admin.ruleForm.customDueOn')
+              : t('admin.ruleForm.customDueOff', { date: longDate(addInterval(today, intervalValue, intervalUnit)) })}
             checked={useCustomDue}
             onChange={setUseCustomDue}
           />
           {useCustomDue ? (
-            <TextField label="First due date" type="date" value={firstDueDate} onChange={(e) => setFirstDueDate(e.target.value)} />
+            <TextField label={t('admin.ruleForm.firstDueDate')} type="date" value={firstDueDate} onChange={(e) => setFirstDueDate(e.target.value)} />
           ) : null}
           {type ? (
             <div className="preview">
               <p className="preview__title">
                 {type.equipmentCount
-                  ? `${plural(type.equipmentCount, 'existing item')} will get this on the schedule`
-                  : 'No equipment of this type yet'}
+                  ? t('admin.ruleForm.previewCount', { count: type.equipmentCount })
+                  : t('admin.ruleForm.previewNone')}
               </p>
               <p className="preview__empty">
                 {type.equipmentCount
-                  ? `Each keeps its own independent schedule, first due ${longDate(useCustomDue ? firstDueDate : addInterval(today, intervalValue, intervalUnit))}. No past completions are invented.`
-                  : 'Add equipment of this type and it will pick this up automatically.'}
+                  ? t('admin.ruleForm.previewBody', { date: longDate(useCustomDue ? firstDueDate : addInterval(today, intervalValue, intervalUnit)) })
+                  : t('admin.ruleForm.previewNoneBody')}
               </p>
             </div>
           ) : null}

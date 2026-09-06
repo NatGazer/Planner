@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './api';
+import { en } from './strings/en';
 
 export interface Resource<T> {
   data: T | null;
@@ -38,7 +39,13 @@ export function useResource<T>(load: () => Promise<T>, deps: unknown[] = []): Re
       setError(null);
     } catch (err) {
       if (mine !== generation.current) return;
-      setError(err instanceof ApiError ? err : new ApiError({ code: 'NETWORK', message: 'Could not reach the server. Check your connection and try again.' }, 0));
+      // Nothing reached the server. Keep the ApiError shape screens expect, and
+      // carry the key rather than a sentence: `errorMessage` says it in the
+      // reader's language at render time, while `message` stays English for logs.
+      setError(err instanceof ApiError ? err : new ApiError(
+        { code: 'NETWORK', message: en['common.offline'], detail: { key: 'common.offline' } },
+        0,
+      ));
     } finally {
       if (mine === generation.current) { setLoading(false); setRefreshing(false); }
     }

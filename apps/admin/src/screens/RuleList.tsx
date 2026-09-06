@@ -10,7 +10,9 @@ import { Button } from '@ui/components/Button';
 import { Segmented, SelectField } from '@ui/components/Field';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
 import { accentClass } from '@ui/lib/status';
-import { cadence, plural } from '@ui/lib/format';
+import { errorMessage } from '@ui/lib/errors';
+import { useT } from '@ui/lib/i18n';
+import { cadence } from '@ui/lib/format';
 import type { MaintenanceRule } from '@ui/lib/types';
 import { adminApi } from '../data';
 import { RuleForm } from '../components/RuleForm';
@@ -23,6 +25,7 @@ type Scope = 'active' | 'inactive' | 'all';
  * tasks, and every item of the type inherits all of them.
  */
 export function RuleList() {
+  const t = useT();
   const { query, navigate } = useRouter();
   const { signOut, today } = useSession();
   const reduced = usePrefersReducedMotion();
@@ -58,45 +61,45 @@ export function RuleList() {
     <div className="page">
       <header className="page__head">
         <div>
-          <h1 className="page__title">Maintenance</h1>
+          <h1 className="page__title">{t('admin.rules.title')}</h1>
           <p className="page__lede">
             {list.data
-              ? <>{plural(total, 'task')} across {plural(grouped.length, 'equipment type')} · each item of a type keeps its own schedule</>
-              : 'Loading…'}
+              ? t('admin.rules.lede', { count: total, types: t('admin.rules.lede.types', { count: grouped.length }) })
+              : t('common.loading')}
           </p>
         </div>
         <div className="page__head-actions">
-          <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>New maintenance task</Button>
+          <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>{t('admin.rules.add')}</Button>
         </div>
       </header>
 
       <div className="filterbar">
         <Segmented
-          ariaLabel="Filter by status" layoutId="rulescope" value={scope} onChange={setScope}
-          options={[{ value: 'all', label: 'Everything' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Deactivated' }]}
+          ariaLabel={t('admin.rules.filter.scope')} layoutId="rulescope" value={scope} onChange={setScope}
+          options={[{ value: 'all', label: t('admin.rules.scope.all') }, { value: 'active', label: t('admin.rules.scope.active') }, { value: 'inactive', label: t('admin.rules.scope.inactive') }]}
         />
         <div className="filterbar__row">
           <SelectField
-            aria-label="Filter by type" value={typeId}
+            aria-label={t('admin.rules.filter.type')} value={typeId}
             onChange={(e) => { setTypeId(e.target.value); navigate(e.target.value ? `/rules?type=${e.target.value}` : '/rules', { replace: true }); }}
-            placeholder="All equipment types"
-            options={(types.data?.types ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.ruleCount})` }))}
+            placeholder={t('admin.rules.filter.allTypes')}
+            options={(types.data?.types ?? []).map((type) => ({ value: type.id, label: t('admin.rules.filter.typeOption', { name: type.name, count: type.ruleCount }) }))}
           />
         </div>
       </div>
 
       {list.error && !list.data ? (
-        <ErrorState message={list.error.message} onRetry={() => void list.reload()} />
+        <ErrorState message={errorMessage(t, list.error)} onRetry={() => void list.reload()} />
       ) : !list.data ? (
         <div className="stack-list">{[0, 1, 2].map((i) => <Skeleton key={i} height={150} radius={20} />)}</div>
       ) : grouped.length === 0 ? (
         <EmptyState
           icon="rules"
-          title={typeId || scope !== 'all' ? 'Nothing matches' : 'No maintenance tasks yet'}
+          title={typeId || scope !== 'all' ? t('admin.rules.empty.filtered.title') : t('admin.rules.empty.title')}
           body={typeId || scope !== 'all'
-            ? 'Try clearing the filters.'
-            : 'Define what needs doing and how often. Every item of the chosen type picks it up straight away.'}
-          action={<Button variant="primary" icon="plus" onClick={() => setAdding(true)}>New maintenance task</Button>}
+            ? t('admin.rules.empty.filtered.body')
+            : t('admin.rules.empty.body')}
+          action={<Button variant="primary" icon="plus" onClick={() => setAdding(true)}>{t('admin.rules.add')}</Button>}
         />
       ) : (
         <motion.div className="rule-groups stage" variants={reduced ? stillContainer : listContainer(grouped.length, 0.03)} initial="hidden" animate="shown">
@@ -105,9 +108,9 @@ export function RuleList() {
               <header className="rule-group__head">
                 <span className="rule-group__glyph"><Icon name={group.type.icon as IconName} size={17} /></span>
                 <h2 className="rule-group__title">{group.type.name}</h2>
-                <span className="rule-group__count">{plural(group.rules.length, 'task')}</span>
+                <span className="rule-group__count">{t('admin.rules.group.count', { count: group.rules.length })}</span>
                 <button type="button" className="ghost-link" onClick={() => { setTypeId(group.type.id); setAdding(true); }}>
-                  <Icon name="plus" size={13} /> Add
+                  <Icon name="plus" size={13} /> {t('admin.rules.group.add')}
                 </button>
               </header>
               <div className="rule-group__body">
@@ -133,6 +136,7 @@ export function RuleList() {
 }
 
 function RuleCard({ rule, onOpen }: { rule: MaintenanceRule; onOpen: () => void }) {
+  const t = useT();
   const tilt = useTilt({ max: 5, scale: 1.012 });
   const reduced = usePrefersReducedMotion();
   return (
@@ -149,13 +153,13 @@ function RuleCard({ rule, onOpen }: { rule: MaintenanceRule; onOpen: () => void 
       {tilt.glare ? <motion.span className="surface__glare" style={{ '--gx': tilt.glare.x, '--gy': tilt.glare.y, opacity: tilt.glare.opacity } as never} aria-hidden="true" /> : null}
       <span className="rule-card__head">
         <span className="rule-card__title">{rule.title}</span>
-        {!rule.active ? <span className="rule-card__flag">Deactivated</span> : null}
+        {!rule.active ? <span className="rule-card__flag">{t('admin.rules.card.deactivated')}</span> : null}
       </span>
-      {rule.instructions ? <span className="rule-card__instructions">{rule.instructions}</span> : <span className="rule-card__instructions rule-card__instructions--none">No instructions written yet.</span>}
+      {rule.instructions ? <span className="rule-card__instructions">{rule.instructions}</span> : <span className="rule-card__instructions rule-card__instructions--none">{t('admin.rules.card.noInstructions')}</span>}
       <span className="rule-card__foot">
         <span className="cadence-chip"><Icon name="refresh" size={11} /> {cadence(rule.intervalValue, rule.intervalUnit)}</span>
-        <span className="rule-card__stat">{rule.pendingCount} scheduled</span>
-        <span className="rule-card__stat">{plural(rule.completionCount, 'completion')}</span>
+        <span className="rule-card__stat">{t('admin.rules.card.scheduled', { count: rule.pendingCount })}</span>
+        <span className="rule-card__stat">{t('admin.rules.card.completions', { count: rule.completionCount })}</span>
         <Icon name="chevronRight" size={15} className="rule-card__go" />
       </span>
     </motion.button>

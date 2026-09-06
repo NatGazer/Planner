@@ -4,7 +4,9 @@ import { Button } from '@ui/components/Button';
 import { SelectField, Switch, TextField } from '@ui/components/Field';
 import { useToaster } from '@ui/components/Toaster';
 import { ApiError } from '@ui/lib/api';
-import { addInterval, longDate, plural, shiftDate } from '@ui/lib/format';
+import { errorMessage } from '@ui/lib/errors';
+import { useT } from '@ui/lib/i18n';
+import { addInterval, longDate, shiftDate } from '@ui/lib/format';
 import type { EquipmentSummary, EquipmentType, MaintenanceRule } from '@ui/lib/types';
 import { adminApi } from '../data';
 
@@ -27,6 +29,7 @@ export interface EquipmentFormProps {
  * pressing Save is going to do to the schedule.
  */
 export function EquipmentForm({ open, onClose, onSaved, types, rules, today, existing, defaultTypeId }: EquipmentFormProps) {
+  const t = useT();
   const toaster = useToaster();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -50,10 +53,10 @@ export function EquipmentForm({ open, onClose, onSaved, types, rules, today, exi
 
   useEffect(() => {
     if (!open) return;
-    const { types: t, today: d } = latest.current;
+    const { types: list, today: d } = latest.current;
     setCode(existing?.code ?? '');
     setName(existing?.name ?? '');
-    setTypeId(existing?.type.id ?? defaultTypeId ?? t[0]?.id ?? '');
+    setTypeId(existing?.type.id ?? defaultTypeId ?? list[0]?.id ?? '');
     setLocation(existing?.location ?? '');
     setActive(existing ? existing.active : true);
     setUseCustomDue(false);
@@ -87,7 +90,10 @@ export function EquipmentForm({ open, onClose, onSaved, types, rules, today, exi
         const { equipment } = await adminApi.updateEquipment(existing.id, {
           code: code.trim(), name: name.trim(), typeId, location: location.trim() || null, active,
         });
-        toaster.success('Equipment updated', `${equipment.code} — ${equipment.name}`);
+        toaster.success(
+          t('admin.equipmentForm.toast.updated'),
+          t('admin.equipmentForm.toast.updatedBody', { code: equipment.code, name: equipment.name }),
+        );
         onSaved(equipment);
       } else {
         const result = await adminApi.createEquipment({
@@ -95,17 +101,16 @@ export function EquipmentForm({ open, onClose, onSaved, types, rules, today, exi
           firstDueDate: useCustomDue ? firstDueDate : null,
         });
         toaster.success(
-          `${result.equipment.code} added`,
+          t('admin.equipmentForm.toast.added', { code: result.equipment.code }),
           result.tasksOpened
-            ? `${plural(result.tasksOpened, 'maintenance task')} scheduled for it.`
-            : 'This type has no maintenance tasks yet.',
+            ? t('admin.equipmentForm.toast.tasksScheduled', { count: result.tasksOpened })
+            : t('admin.equipmentForm.toast.noTasks'),
         );
         onSaved(result.equipment);
       }
       onClose();
     } catch (err) {
-      if (err instanceof ApiError) setError({ field: err.field, message: err.message });
-      else setError({ message: 'Could not save. Please try again.' });
+      setError({ field: err instanceof ApiError ? err.field : undefined, message: errorMessage(t, err) });
     } finally {
       setBusy(false);
     }
@@ -117,53 +122,53 @@ export function EquipmentForm({ open, onClose, onSaved, types, rules, today, exi
     <Sheet
       open={open}
       onClose={onClose}
-      title={existing ? 'Edit equipment' : 'Add equipment'}
-      subtitle={existing ? existing.code : 'One record per physical item'}
+      title={existing ? t('admin.equipmentForm.edit') : t('admin.equipmentForm.add')}
+      subtitle={existing ? existing.code : t('admin.equipmentForm.subtitle')}
       size="md"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" loading={busy} disabled={!valid} onClick={save}>
-            {existing ? 'Save changes' : 'Add equipment'}
+            {existing ? t('admin.equipmentForm.save') : t('admin.equipmentForm.add')}
           </Button>
         </>
       }
     >
       <div className="form-grid">
         <TextField
-          label="Asset code" required autoFocus
+          label={t('admin.equipmentForm.code')} required autoFocus
           value={code} onChange={(e) => setCode(e.target.value)}
-          placeholder="HVAC-06"
-          hint="Unique across the estate. It is what workers look for on the label."
+          placeholder={t('admin.equipmentForm.code.placeholder')}
+          hint={t('admin.equipmentForm.code.hint')}
           error={error?.field === 'code' ? error.message : null}
         />
         <TextField
-          label="Name" required
+          label={t('admin.equipmentForm.name')} required
           value={name} onChange={(e) => setName(e.target.value)}
-          placeholder="Rooftop unit — East wing"
+          placeholder={t('admin.equipmentForm.name.placeholder')}
         />
         <SelectField
-          label="Equipment type" required
+          label={t('admin.equipmentForm.type')} required
           value={typeId} onChange={(e) => setTypeId(e.target.value)}
-          options={types.map((t) => ({ value: t.id, label: t.name }))}
+          options={types.map((type) => ({ value: type.id, label: type.name }))}
           hint={existing && existing.type.id !== typeId
-            ? 'Changing the type opens the new type’s schedule. Pending work under rules that no longer apply goes dormant at its own date — nothing is deleted, and moving the item back restores it. History is never touched.'
-            : 'The item inherits every maintenance task defined for this type.'}
+            ? t('admin.equipmentForm.type.hintChanging')
+            : t('admin.equipmentForm.type.hint')}
           error={error?.field === 'typeId' ? error.message : null}
         />
         <TextField
-          label="Location"
+          label={t('admin.equipmentForm.location')}
           value={location} onChange={(e) => setLocation(e.target.value)}
-          placeholder="Roof, North wing"
-          hint="Optional. Shown to workers so they can find it."
+          placeholder={t('admin.equipmentForm.location.placeholder')}
+          hint={t('admin.equipmentForm.location.hint')}
         />
       </div>
 
       <Switch
-        label={active ? 'In service' : 'Deactivated'}
+        label={active ? t('admin.equipmentForm.active.on') : t('admin.equipmentForm.active.off')}
         description={active
-          ? 'Its maintenance appears in the worker app.'
-          : 'Pending tasks are hidden and keep their dates. History is preserved.'}
+          ? t('admin.equipmentForm.active.onHint')
+          : t('admin.equipmentForm.active.offHint')}
         checked={active}
         onChange={setActive}
       />
@@ -171,22 +176,22 @@ export function EquipmentForm({ open, onClose, onSaved, types, rules, today, exi
       {!existing ? (
         <>
           <Switch
-            label="Set the first due date myself"
+            label={t('admin.equipmentForm.customDue')}
             description={useCustomDue
-              ? 'Every inherited task will first fall due on the date below.'
-              : 'By default each task first falls due one interval from today.'}
+              ? t('admin.equipmentForm.customDue.onHint')
+              : t('admin.equipmentForm.customDue.offHint')}
             checked={useCustomDue}
             onChange={setUseCustomDue}
           />
           {useCustomDue ? (
-            <TextField label="First due date" type="date" value={firstDueDate} onChange={(e) => setFirstDueDate(e.target.value)} />
+            <TextField label={t('admin.equipmentForm.firstDue')} type="date" value={firstDueDate} onChange={(e) => setFirstDueDate(e.target.value)} />
           ) : null}
 
           <div className="preview">
             <p className="preview__title">
               {inherited.length
-                ? `This item will inherit ${plural(inherited.length, 'maintenance task')}`
-                : 'This type has no active maintenance tasks yet'}
+                ? t('admin.equipmentForm.preview.inherits', { count: inherited.length })
+                : t('admin.equipmentForm.preview.emptyTitle')}
             </p>
             {inherited.length ? (
               <ul className="preview__list">
@@ -194,13 +199,15 @@ export function EquipmentForm({ open, onClose, onSaved, types, rules, today, exi
                   <li key={r.id}>
                     <span className="preview__rule">{r.title}</span>
                     <span className="preview__due">
-                      first due {longDate(useCustomDue ? firstDueDate : addInterval(today, r.intervalValue, r.intervalUnit))}
+                      {t('admin.equipmentForm.preview.firstDue', {
+                        date: longDate(useCustomDue ? firstDueDate : addInterval(today, r.intervalValue, r.intervalUnit)),
+                      })}
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="preview__empty">You can add maintenance tasks to the type at any time — they will open a schedule on this item automatically.</p>
+              <p className="preview__empty">{t('admin.equipmentForm.preview.emptyHint')}</p>
             )}
           </div>
         </>

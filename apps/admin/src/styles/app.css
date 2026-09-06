@@ -275,7 +275,13 @@
 }
 .panel__hitbox:focus-visible { outline-offset: -3px; }
 .panel__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); }
-.panel__heading { display: flex; align-items: flex-start; gap: var(--s-3); min-width: 0; }
+.panel__heading { display: flex; align-items: flex-start; gap: var(--s-3); min-width: 0; flex: 1 1 auto; }
+/* The heading itself could shrink, but the block holding the title and
+   subtitle could not: without min-width, a flex item never goes below its
+   content's intrinsic width, so a Portuguese or French title that is 20%
+   longer than the English pushed the whole panel sideways instead of
+   wrapping. Every screen fitted in English and none of them proved anything. */
+.panel__heading > div { min-width: 0; }
 .panel__icon {
   width: 28px; height: 28px; flex: none;
   display: grid; place-items: center;
@@ -295,6 +301,14 @@
   transition: color 160ms ease, background-color 160ms ease;
 }
 .panel--clickable:hover .panel__open { color: var(--brand-ink); background: var(--brand-soft); }
+/* The open control never shrinks, so on a phone its label was taking the width
+   the title needed — in French it left 80px for a 91px word. The whole panel
+   is clickable anyway; below 600px the arrow alone says "there is more here",
+   and the button keeps its name through aria-label. */
+@media (max-width: 600px) {
+  .panel__open-label { display: none; }
+  .panel__open { padding: 6px; }
+}
 .panel__body { position: relative; z-index: 2; flex: 1; min-width: 0; pointer-events: none; }
 .panel__body > * { pointer-events: auto; }
 
@@ -313,6 +327,19 @@
   color: var(--text-low);
 }
 .workload__tick { flex: 1; text-align: center; min-width: 0; }
+/* Fourteen columns across a 402px phone is 25px each — narrower than the word
+   "Today" in any language, Portuguese and French included. So the phone gets
+   the same one-letter tick as every other day, with the accent colour and a
+   dot saying which one is today; the word returns when there is room for it. */
+.workload__tick.is-now::after {
+  content: '';
+  display: block; width: 4px; height: 4px; margin: 3px auto 0;
+  border-radius: 50%;
+  background: var(--status-today);
+}
+@media (min-width: 601px) {
+  .workload__tick.is-now::after { display: none; }
+}
 .workload__tick.is-now { color: var(--status-today-ink); font-weight: var(--w-semi); }
 .workload__stack { margin-top: var(--s-1); }
 .workload__legend { display: flex; flex-wrap: wrap; gap: var(--s-4); }
@@ -1003,4 +1030,16 @@
   .sheet__header, .sheet__body, .sheet__footer { padding-left: var(--s-4); padding-right: var(--s-4); }
   .form-grid { grid-template-columns: 1fr; }
   .completion-detail { grid-template-columns: 1fr; }
+}
+
+.signin__lang { display: flex; justify-content: center; margin-top: var(--s-4); }
+
+.account__row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-2) 0 var(--s-3);
+}
+.account__rowLabel {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--t-11); font-weight: var(--w-semi); letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-low);
 }

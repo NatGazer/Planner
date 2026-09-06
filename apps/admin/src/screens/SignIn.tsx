@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useSession } from '@ui/lib/session';
+import { useT } from '@ui/lib/i18n';
 import { Button } from '@ui/components/Button';
 import { TextField } from '@ui/components/Field';
 import { Icon } from '@ui/components/Icon';
+import { LanguagePicker } from '@ui/components/LanguagePicker';
 import { usePrefersReducedMotion } from '@ui/anim/hooks';
 import { spring } from '@ui/anim/motion';
 
@@ -13,6 +15,7 @@ import { spring } from '@ui/anim/motion';
  */
 export function SignIn() {
   const { signIn, error } = useSession();
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,11 +67,11 @@ export function SignIn() {
         </motion.div>
 
         <h1 className="signin__title">Maintenance Control</h1>
-        <p className="signin__lede">Sign in to configure equipment, watch the schedule and review completed work.</p>
+        <p className="signin__lede">{t('admin.signIn.lede')}</p>
 
         <form className="signin__form" onSubmit={submit}>
           <TextField
-            label="Email"
+            label={t('admin.signIn.email')}
             type="email"
             autoComplete="username"
             inputMode="email"
@@ -76,10 +79,10 @@ export function SignIn() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@company.com"
+            placeholder={t('admin.signIn.email.placeholder')}
           />
           <TextField
-            label="Password"
+            label={t('admin.signIn.password')}
             type="password"
             autoComplete="current-password"
             required
@@ -89,15 +92,21 @@ export function SignIn() {
             error={error}
           />
           <Button type="submit" variant="primary" size="lg" block loading={busy} iconAfter="arrowRight">
-            Sign in
+            {t('common.signIn')}
           </Button>
         </form>
 
         <div className="signin__hint">
           <Icon name="info" size={13} />
           <span>
-            Workers sign in to the separate worker app. This one is for administrators only.
+            {t('admin.signIn.workerHint')}
           </span>
+        </div>
+
+        {/* Inside the card, under the form: the language has to be reachable
+            before signing in, not only from the account menu afterwards. */}
+        <div className="signin__lang">
+          <LanguagePicker />
         </div>
       </motion.div>
 
@@ -107,7 +116,7 @@ export function SignIn() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.55, duration: 0.5 }}
       >
-        Demo administrator — <code>ana@fieldworks.example</code> · <code>admin1234</code>
+        {t('admin.signIn.demo')} <code>ana@fieldworks.example</code> · <code>admin1234</code>
       </motion.p>
     </div>
   );

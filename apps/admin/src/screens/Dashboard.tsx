@@ -7,10 +7,12 @@ import { Icon } from '@ui/components/Icon';
 import { Bars, Ring, Sparkline, Stack } from '@ui/components/charts';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
 import { Button } from '@ui/components/Button';
-import { useCountUp, usePrefersReducedMotion } from '@ui/anim/hooks';
+import { useCountUp, usePrefersReducedMotion, useMediaQuery } from '@ui/anim/hooks';
 import { listContainer, riseIn, stillContainer } from '@ui/anim/motion';
 import { accentClass, urgencySummary } from '@ui/lib/status';
-import { plural, shortDate, weekday } from '@ui/lib/format';
+import { errorMessage } from '@ui/lib/errors';
+import { useT } from '@ui/lib/i18n';
+import { shortDate, weekday, weekdayNarrow } from '@ui/lib/format';
 import type { IconName } from '@ui/components/Icon';
 import { adminApi } from '../data';
 import { CompletionRow, Panel, StatTile, TaskRow } from '../components/primitives';
@@ -21,6 +23,9 @@ import { CompletionRow, Panel, StatTile, TaskRow } from '../components/primitive
  * the list it is counting.
  */
 export function Dashboard() {
+  const t = useT();
+  // Fourteen axis columns on a phone leave 25px each: not a word, in any language.
+  const narrow = useMediaQuery('(max-width: 600px)');
   const { navigate } = useRouter();
   const { signOut } = useSession();
   const reduced = usePrefersReducedMotion();
@@ -32,18 +37,20 @@ export function Dashboard() {
   const data = dash.data;
 
   const trendValues = useMemo(() => data?.completionTrend.map((d) => d.count) ?? [], [data]);
+  // `t` is a dependency like any other: the tooltips are sentences, and they
+  // have to be rebuilt when the reader changes language.
   const loadBars = useMemo(() => (data?.upcomingLoad ?? []).map((d, i) => ({
     label: d.date,
     value: d.count,
     carried: d.carried,
     emphasis: i === 0 && d.carried > 0,
     title: i === 0 && d.carried
-      ? `${shortDate(d.date, data?.today)}: ${d.count} due, including ${d.carried} overdue`
-      : `${weekday(d.date)} ${shortDate(d.date, data?.today)}: ${plural(d.count, 'task')}`,
-  })), [data]);
+      ? t('admin.dashboard.load.tipCarried', { date: shortDate(d.date, data?.today), count: d.count, carried: d.carried })
+      : t('admin.dashboard.load.tip', { weekday: weekday(d.date), date: shortDate(d.date, data?.today), count: d.count }),
+  })), [data, t]);
 
   if (dash.error && !data) {
-    return <div className="page page--wide"><ErrorState message={dash.error.message} onRetry={() => void dash.reload()} /></div>;
+    return <div className="page page--wide"><ErrorState message={errorMessage(t, dash.error)} onRetry={() => void dash.reload()} /></div>;
   }
 
   if (!data) {
@@ -61,6 +68,7 @@ export function Dashboard() {
 
   const s = data.stats;
   const pressure = s.overdue + s.dueToday;
+  const oldest = data.attention[0];
 
   return (
     <div className="page page--wide">
@@ -71,17 +79,22 @@ export function Dashboard() {
         animate="shown"
       >
         <motion.div variants={riseIn}>
-          <h1 className="page__title">Overview</h1>
+          <h1 className="page__title">{t('admin.dashboard.title')}</h1>
           <p className="page__lede">
-            {urgencySummary({ overdue: s.overdue, today: s.dueToday, soon: s.dueThisWeek })}
+            {urgencySummary(t, { overdue: s.overdue, today: s.dueToday, soon: s.dueThisWeek })}
             {' · '}
-            <span className="page__lede-quiet">{plural(s.activeEquipment, 'active item')} across {plural(s.equipmentTypes, 'type')}</span>
+            <span className="page__lede-quiet">
+              {t('admin.dashboard.lede.estate', {
+                count: s.activeEquipment,
+                types: t('admin.dashboard.lede.types', { count: s.equipmentTypes }),
+              })}
+            </span>
           </p>
         </motion.div>
         <motion.div className="page__head-actions" variants={riseIn}>
           <button type="button" className="ghost-link" onClick={() => void dash.reload()} disabled={dash.refreshing}>
             <Icon name="refresh" size={14} className={dash.refreshing ? 'is-spinning' : undefined} />
-            {dash.refreshing ? 'Refreshing' : 'Refresh'}
+            {dash.refreshing ? t('admin.dashboard.refreshing') : t('admin.dashboard.refresh')}
           </button>
         </motion.div>
       </motion.header>
@@ -96,38 +109,42 @@ export function Dashboard() {
         <div className="grid__tiles">
           <StatTile
             index={0}
-            label="Active equipment"
+            label={t('admin.dashboard.tile.equipment.label')}
             value={s.activeEquipment}
             caption={s.inactiveEquipment
-              ? <>{plural(s.inactiveEquipment, 'item')} deactivated</>
-              : <>All items in service</>}
+              ? t('admin.dashboard.tile.equipment.deactivated', { count: s.inactiveEquipment })
+              : t('admin.dashboard.tile.equipment.allActive')}
             icon="equipment"
             tone="neutral"
             onOpen={go('/equipment')}
           />
           <StatTile
             index={1}
-            label="Overdue"
+            label={t('status.overdue')}
             value={s.overdue}
-            caption={s.overdue ? <>Oldest {data.attention[0] ? data.attention[0].due.label.replace(' overdue', '') : ''} past due</> : <>Nothing is late</>}
+            caption={s.overdue
+              ? (oldest ? t('admin.dashboard.tile.overdue.oldest', { count: Math.abs(oldest.due.days) }) : '')
+              : t('admin.dashboard.tile.overdue.none')}
             icon="alert"
             tone="overdue"
             onOpen={go('/tasks?bucket=overdue')}
           />
           <StatTile
             index={2}
-            label="Due today"
+            label={t('status.today')}
             value={s.dueToday}
-            caption={s.dueToday ? <>Scheduled for {shortDate(data.today)}</> : <>Nothing scheduled today</>}
+            caption={s.dueToday
+              ? t('admin.dashboard.tile.today.scheduled', { date: shortDate(data.today) })
+              : t('admin.dashboard.tile.today.none')}
             icon="clock"
             tone="today"
             onOpen={go('/tasks?bucket=today')}
           />
           <StatTile
             index={3}
-            label="Next seven days"
+            label={t('admin.dashboard.tile.week.label')}
             value={s.dueThisWeek}
-            caption={<>{plural(s.outstanding, 'task')} outstanding in total</>}
+            caption={t('admin.dashboard.tile.week.outstanding', { count: s.outstanding })}
             icon="calendar"
             tone="soon"
             onOpen={go('/tasks?bucket=week')}
@@ -136,32 +153,37 @@ export function Dashboard() {
 
         {/* -------------------------------------------------- workload chart */}
         <Panel
-          title="The fortnight ahead"
+          title={t('admin.dashboard.load.title')}
           subtitle={pressure
-            ? `${plural(pressure, 'task')} ${pressure === 1 ? 'needs' : 'need'} attention today or sooner`
-            : 'Nothing is late — the schedule is clear'}
+            ? t('admin.dashboard.load.pressure', { count: pressure })
+            : t('admin.dashboard.load.clear')}
           icon="trend"
           span={8}
           onOpen={go('/tasks')}
-          openLabel="Open the task list"
+          openLabel={t('admin.dashboard.load.open')}
         >
           {s.outstanding === 0 ? (
             <EmptyState
               icon={s.totalEquipment ? 'checkCircle' : 'sparkle'}
               tone={s.totalEquipment ? 'good' : 'calm'}
-              title={s.totalEquipment ? 'Nothing is scheduled' : 'Nothing set up yet'}
+              title={s.totalEquipment ? t('admin.dashboard.load.empty.title') : t('admin.dashboard.setup.title')}
               body={s.totalEquipment
-                ? 'Every item is either deactivated or has no active maintenance task. Add one and a schedule opens here.'
-                : 'Start with an equipment type, give it the maintenance it needs, then add the physical items. Each one gets its own schedule.'}
+                ? t('admin.dashboard.load.empty.body')
+                : t('admin.dashboard.setup.body')}
               action={<Button variant="primary" icon="plus" onClick={go(s.totalEquipment ? '/rules' : '/types')}>
-                {s.totalEquipment ? 'Add a maintenance task' : 'Create the first type'}
+                {s.totalEquipment ? t('admin.dashboard.load.empty.action') : t('admin.dashboard.setup.action')}
               </Button>}
             />
           ) : (
           <div className="workload">
             <div className="workload__scale">
-              <span>Tasks falling due each day</span>
-              <span><span className="workload__peak">{Math.max(...(data.upcomingLoad.map((d) => d.count)), 0)}</span> at the peak</span>
+              <span>{t('admin.dashboard.load.scale')}</span>
+              {/* One sentence, one key: the emphasis moves to the whole phrase
+                  rather than wrapping a number that sits elsewhere in a
+                  translated word order. */}
+              <span className="workload__peak">
+                {t('admin.dashboard.load.peak', { count: Math.max(...(data.upcomingLoad.map((d) => d.count)), 0) })}
+              </span>
             </div>
             <Bars values={loadBars} height={168} delay={0.24} onSelect={(i) => {
               // Day zero carries the backlog as well as today's own work, so it
@@ -172,25 +194,30 @@ export function Dashboard() {
             }} />
             <div className="workload__axis">
               {data.upcomingLoad.map((d, i) => (
-                <span key={d.date} className={`workload__tick${i === 0 ? ' is-now' : ''}`}>
-                  {i === 0 ? 'Today' : i % 2 === 0 ? weekday(d.date)[0] : ''}
+                <span
+                  key={d.date}
+                  className={`workload__tick${i === 0 ? ' is-now' : ''}`}
+                  aria-label={i === 0 ? t('admin.dashboard.load.axisToday') : undefined}
+                >
+                  {i === 0 && !narrow ? t('admin.dashboard.load.axisToday')
+                    : i === 0 || i % 2 === 0 ? weekdayNarrow(d.date) : ''}
                 </span>
               ))}
             </div>
             <Stack
               className="workload__stack"
               segments={[
-                { key: 'overdue', value: s.overdue, color: 'var(--status-overdue)', label: 'Overdue' },
-                { key: 'today', value: s.dueToday, color: 'var(--status-today)', label: 'Due today' },
-                { key: 'soon', value: s.dueThisWeek, color: 'var(--status-soon)', label: 'This week' },
-                { key: 'later', value: s.later, color: 'var(--status-later)', label: 'Later' },
+                { key: 'overdue', value: s.overdue, color: 'var(--status-overdue)', label: t('status.overdue') },
+                { key: 'today', value: s.dueToday, color: 'var(--status-today)', label: t('status.today') },
+                { key: 'soon', value: s.dueThisWeek, color: 'var(--status-soon)', label: t('status.soon.short') },
+                { key: 'later', value: s.later, color: 'var(--status-later)', label: t('status.later.short') },
               ]}
             />
             <div className="workload__legend">
-              <LegendDot tone="overdue" label="Overdue" value={s.overdue} />
-              <LegendDot tone="today" label="Due today" value={s.dueToday} />
-              <LegendDot tone="soon" label="This week" value={s.dueThisWeek} />
-              <LegendDot tone="later" label="Later" value={s.later} />
+              <LegendDot tone="overdue" label={t('status.overdue')} value={s.overdue} />
+              <LegendDot tone="today" label={t('status.today')} value={s.dueToday} />
+              <LegendDot tone="soon" label={t('status.soon.short')} value={s.dueThisWeek} />
+              <LegendDot tone="later" label={t('status.later.short')} value={s.later} />
             </div>
           </div>
           )}
@@ -198,12 +225,12 @@ export function Dashboard() {
 
         {/* ------------------------------------------------------ on-time rate */}
         <Panel
-          title="On-time rate"
-          subtitle="Completed by the due date, last thirty days"
+          title={t('admin.dashboard.ontime.title')}
+          subtitle={t('admin.dashboard.ontime.subtitle')}
           icon="checkCircle"
           span={4}
           onOpen={go('/history')}
-          openLabel="See history"
+          openLabel={t('admin.dashboard.ontime.open')}
         >
           <div className="ontime">
             <Ring value={(s.onTimeRate30d ?? 0) / 100} size={128} thickness={11} className="ontime__ring">
@@ -213,15 +240,15 @@ export function Dashboard() {
             </Ring>
             <div className="ontime__facts">
               <p className="ontime__fact">
-                <strong>{s.onTime30d}</strong> of {plural(s.completions30d, 'completion')} met their due date
+                {t('admin.dashboard.ontime.met', { onTime: s.onTime30d, count: s.completions30d })}
               </p>
               <p className="ontime__fact ontime__fact--quiet">
-                {plural(s.completionsAllTime, 'completion')} recorded in total
+                {t('admin.dashboard.ontime.total', { count: s.completionsAllTime })}
               </p>
               {trendValues.length ? (
                 <div className="ontime__spark">
                   <Sparkline values={trendValues} width={200} height={40} delay={0.4} />
-                  <span className="ontime__spark-label">28-day activity</span>
+                  <span className="ontime__spark-label">{t('admin.dashboard.ontime.spark')}</span>
                 </div>
               ) : null}
             </div>
@@ -230,12 +257,14 @@ export function Dashboard() {
 
         {/* -------------------------------------------------- needs attention */}
         <Panel
-          title="Needs attention"
-          subtitle={s.overdue ? `${plural(s.overdue, 'task')} past due` : 'Nothing is overdue'}
+          title={t('admin.dashboard.attention.title')}
+          subtitle={s.overdue
+            ? t('admin.dashboard.attention.subtitle', { count: s.overdue })
+            : t('admin.dashboard.attention.none')}
           icon="alert"
           span={6}
           onOpen={s.overdue ? go('/tasks?bucket=overdue') : undefined}
-          openLabel="See all overdue"
+          openLabel={t('admin.dashboard.attention.open')}
         >
           {data.attention.length ? (
             <motion.div className="stack-list" variants={reduced ? stillContainer : listContainer(data.attention.length)} initial="hidden" animate="shown">
@@ -247,20 +276,20 @@ export function Dashboard() {
             <EmptyState
               icon="checkCircle"
               tone="good"
-              title="Everything is up to date"
-              body="No maintenance is past its due date. The next items are scheduled below."
+              title={t('admin.dashboard.attention.empty.title')}
+              body={t('admin.dashboard.attention.empty.body')}
             />
           )}
         </Panel>
 
         {/* ------------------------------------------------ recent completions */}
         <Panel
-          title="Recently completed"
-          subtitle="Submitted from the worker app"
+          title={t('admin.dashboard.recent.title')}
+          subtitle={t('admin.dashboard.recent.subtitle')}
           icon="history"
           span={6}
           onOpen={go('/history')}
-          openLabel="Full history"
+          openLabel={t('admin.dashboard.recent.open')}
         >
           {data.recentCompletions.length ? (
             <motion.div className="stack-list" variants={reduced ? stillContainer : listContainer(data.recentCompletions.length)} initial="hidden" animate="shown">
@@ -269,32 +298,36 @@ export function Dashboard() {
               ))}
             </motion.div>
           ) : (
-            <EmptyState icon="camera" title="No completions yet" body="Work submitted by the team will appear here, photo and all." />
+            <EmptyState icon="camera" title={t('admin.dashboard.recent.empty.title')} body={t('admin.dashboard.recent.empty.body')} />
           )}
         </Panel>
 
         {/* ------------------------------------------------------------ types */}
         <Panel
-          title="Equipment types"
-          subtitle={`${plural(s.equipmentTypes, 'type')} · ${plural(s.activeRules, 'active maintenance task')}`}
+          title={t('admin.dashboard.types.title')}
+          subtitle={t('admin.dashboard.types.subtitle', {
+            count: s.equipmentTypes,
+            tasks: t('admin.dashboard.types.tasks', { count: s.activeRules }),
+          })}
           icon="types"
           span={5}
           onOpen={go('/types')}
-          openLabel="Manage types"
+          openLabel={t('admin.dashboard.types.open')}
         >
           <motion.div className="type-grid" variants={reduced ? stillContainer : listContainer(data.byType.length)} initial="hidden" animate="shown">
-            {data.byType.map((t) => (
+            {/* The row is `type`, not `t`: `t` is the translator here. */}
+            {data.byType.map((type) => (
               <motion.button
-                key={t.id}
+                key={type.id}
                 type="button"
                 variants={riseIn}
-                className={`type-cell ${accentClass(t.accent)}${t.overdue ? ' has-overdue' : ''}`}
-                onClick={() => navigate(`/equipment?type=${t.id}`)}
+                className={`type-cell ${accentClass(type.accent)}${type.overdue ? ' has-overdue' : ''}`}
+                onClick={() => navigate(`/equipment?type=${type.id}`)}
               >
-                <span className="type-cell__icon"><Icon name={t.icon as IconName} size={18} /></span>
-                <span className="type-cell__name">{t.name}</span>
-                <span className="type-cell__count">{t.equipmentCount}</span>
-                {t.overdue ? <span className="type-cell__overdue">{t.overdue} overdue</span> : null}
+                <span className="type-cell__icon"><Icon name={type.icon as IconName} size={18} /></span>
+                <span className="type-cell__name">{type.name}</span>
+                <span className="type-cell__count">{type.equipmentCount}</span>
+                {type.overdue ? <span className="type-cell__overdue">{t('urgency.overdue', { count: type.overdue })}</span> : null}
               </motion.button>
             ))}
           </motion.div>
@@ -302,12 +335,12 @@ export function Dashboard() {
 
         {/* ----------------------------------------------------------- next up */}
         <Panel
-          title="Coming up"
-          subtitle="The next scheduled work"
+          title={t('admin.dashboard.next.title')}
+          subtitle={t('admin.dashboard.next.subtitle')}
           icon="calendar"
           span={7}
           onOpen={go('/tasks')}
-          openLabel="See the schedule"
+          openLabel={t('admin.dashboard.next.open')}
         >
           {data.nextUp.length ? (
             <motion.div className="stack-list" variants={reduced ? stillContainer : listContainer(data.nextUp.length)} initial="hidden" animate="shown">
@@ -316,18 +349,15 @@ export function Dashboard() {
               ))}
             </motion.div>
           ) : (
-            <EmptyState icon="sparkle" title="Nothing scheduled" body="Add equipment or a maintenance task to start a schedule." />
+            <EmptyState icon="sparkle" title={t('admin.dashboard.next.empty.title')} body={t('admin.dashboard.next.empty.body')} />
           )}
         </Panel>
 
         {s.hiddenPending ? (
           <motion.aside variants={riseIn} className="note-strip" style={{ gridColumn: 'span 12' }}>
             <Icon name="info" size={15} />
-            <p>
-              <strong>{plural(s.hiddenPending, 'pending task')}</strong> are hidden because their equipment or maintenance
-              task is deactivated. They keep their due dates and reappear the moment you reactivate.
-            </p>
-            <button type="button" className="ghost-link" onClick={go('/tasks?hidden=1')}>Show them</button>
+            <p>{t('admin.dashboard.hidden.body', { count: s.hiddenPending })}</p>
+            <button type="button" className="ghost-link" onClick={go('/tasks?hidden=1')}>{t('admin.dashboard.hidden.action')}</button>
           </motion.aside>
         ) : null}
       </motion.div>

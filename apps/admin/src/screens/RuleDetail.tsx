@@ -11,8 +11,9 @@ import { Segmented } from '@ui/components/Field';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
 import { useToaster } from '@ui/components/Toaster';
 import { accentClass } from '@ui/lib/status';
-import { cadence, instantLong, plural } from '@ui/lib/format';
-import { ApiError } from '@ui/lib/api';
+import { errorMessage } from '@ui/lib/errors';
+import { useT } from '@ui/lib/i18n';
+import { cadence, instantLong } from '@ui/lib/format';
 import type { Task } from '@ui/lib/types';
 import { adminApi } from '../data';
 import { RuleForm } from '../components/RuleForm';
@@ -25,6 +26,7 @@ type Tab = 'schedule' | 'history' | 'activity';
 
 /** One maintenance task, and every schedule it is currently driving. */
 export function RuleDetail({ id }: { id: string }) {
+  const t = useT();
   const { navigate } = useRouter();
   const { signOut } = useSession();
   const toaster = useToaster();
@@ -45,30 +47,30 @@ export function RuleDetail({ id }: { id: string }) {
     const next = !detail.data.rule.active;
     try {
       await adminApi.updateRule(id, { active: next });
-      toaster.success(next ? 'Reactivated' : 'Deactivated', next
-        ? 'Pending tasks are visible again at their existing due dates, overdue ones included.'
-        : 'Pending tasks are hidden and keep their dates. Completed history is untouched.');
+      toaster.success(next ? t('admin.ruleDetail.reactivated') : t('admin.ruleDetail.deactivated'), next
+        ? t('admin.ruleDetail.reactivatedBody')
+        : t('admin.ruleDetail.deactivatedBody'));
       await detail.reload();
     } catch (err) {
-      toaster.error('Could not update', err instanceof ApiError ? err.message : 'Please try again.');
+      toaster.error(t('admin.ruleDetail.updateFailed'), errorMessage(t, err));
     }
-  }, [detail, id, toaster]);
+  }, [detail, id, t, toaster]);
 
   if (detail.error && !detail.data) {
-    return <div className="page"><ErrorState message={detail.error.message} onRetry={() => void detail.reload()} /></div>;
+    return <div className="page"><ErrorState message={errorMessage(t, detail.error)} onRetry={() => void detail.reload()} /></div>;
   }
   if (!detail.data) {
     return <div className="page"><Skeleton height={168} radius={22} /><div style={{ height: 20 }} /><div className="stack-list">{[0, 1, 2].map((i) => <Skeleton key={i} height={62} radius={16} />)}</div></div>;
   }
 
   const { rule, tasks, history, activity, today } = detail.data;
-  const visible = tasks.filter((t) => t.equipment.active && t.rule.active);
+  const visible = tasks.filter((task) => task.equipment.active && task.rule.active);
   const hidden = tasks.length - visible.length;
 
   return (
     <div className="page">
       <button type="button" className="backlink" onClick={() => navigate('/rules')}>
-        <Icon name="chevronLeft" size={15} /> Maintenance
+        <Icon name="chevronLeft" size={15} /> {t('admin.ruleDetail.backToRules')}
       </button>
 
       <header className={`hero ${accentClass(rule.type.accent)}${rule.active ? '' : ' is-inactive'}`}>
@@ -78,35 +80,35 @@ export function RuleDetail({ id }: { id: string }) {
             <p className="hero__eyebrow">
               <button type="button" className="hero__code hero__code--link" onClick={() => navigate(`/rules?type=${rule.type.id}`)}>{rule.type.name}</button>
               <span className="hero__type">{cadence(rule.intervalValue, rule.intervalUnit)}</span>
-              {!rule.active ? <span className="hero__flag">Deactivated</span> : null}
+              {!rule.active ? <span className="hero__flag">{t('admin.ruleDetail.flag.deactivated')}</span> : null}
             </p>
             <h1 className="hero__title">{rule.title}</h1>
             {rule.instructions
               ? <p className="hero__instructions">{rule.instructions}</p>
-              : <p className="hero__meta hero__meta-quiet">No instructions written yet — workers see only the title.</p>}
+              : <p className="hero__meta hero__meta-quiet">{t('admin.ruleDetail.noInstructions')}</p>}
           </div>
         </div>
 
         <div className="hero__stats">
-          <div className="hero-stat"><span className="hero-stat__value">{visible.length}</span><span className="hero-stat__label">Scheduled</span></div>
-          <div className="hero-stat"><span className="hero-stat__value">{rule.completionCount}</span><span className="hero-stat__label">Completed</span></div>
+          <div className="hero-stat"><span className="hero-stat__value">{visible.length}</span><span className="hero-stat__label">{t('admin.ruleDetail.stat.scheduled')}</span></div>
+          <div className="hero-stat"><span className="hero-stat__value">{rule.completionCount}</span><span className="hero-stat__label">{t('admin.ruleDetail.stat.completed')}</span></div>
         </div>
 
         <div className="hero__actions">
-          <Button variant="secondary" icon="edit" onClick={() => setEditing(true)}>Edit</Button>
+          <Button variant="secondary" icon="edit" onClick={() => setEditing(true)}>{t('admin.ruleDetail.action.edit')}</Button>
           <Button variant={rule.active ? 'ghost' : 'primary'} icon="power" onClick={toggleActive}>
-            {rule.active ? 'Deactivate' : 'Reactivate'}
+            {rule.active ? t('admin.ruleDetail.action.deactivate') : t('admin.ruleDetail.action.reactivate')}
           </Button>
-          <Button variant="quiet" icon="archive" onClick={() => setArchiving(true)}>Archive</Button>
+          <Button variant="quiet" icon="archive" onClick={() => setArchiving(true)}>{t('admin.ruleDetail.action.archive')}</Button>
         </div>
       </header>
 
       <Segmented
-        ariaLabel="Sections" layoutId="ruletab" className="detail-tabs" value={tab} onChange={setTab}
+        ariaLabel={t('admin.ruleDetail.tabs.aria')} layoutId="ruletab" className="detail-tabs" value={tab} onChange={setTab}
         options={[
-          { value: 'schedule', label: 'Schedule', count: visible.length },
-          { value: 'history', label: 'History', count: history.length },
-          { value: 'activity', label: 'Activity', count: activity.length },
+          { value: 'schedule', label: t('admin.ruleDetail.tab.schedule'), count: visible.length },
+          { value: 'history', label: t('admin.ruleDetail.tab.history'), count: history.length },
+          { value: 'activity', label: t('admin.ruleDetail.tab.activity'), count: activity.length },
         ]}
       />
 
@@ -133,19 +135,21 @@ export function RuleDetail({ id }: { id: string }) {
             ) : (
               <EmptyState
                 icon="calendar"
-                title={rule.active ? 'No equipment of this type yet' : 'Schedules hidden while deactivated'}
+                title={rule.active
+                  ? t('admin.ruleDetail.empty.scheduleTitle')
+                  : t('admin.ruleDetail.empty.hiddenTitle')}
                 body={rule.active
-                  ? 'Add equipment of this type and it will inherit this task with its own schedule.'
-                  : 'Every pending occurrence still exists and keeps its date. Reactivate to bring them back.'}
+                  ? t('admin.ruleDetail.empty.scheduleBody')
+                  : t('admin.ruleDetail.empty.hiddenBody')}
                 action={rule.active
-                  ? <Button variant="secondary" icon="plus" onClick={() => navigate(`/equipment?type=${rule.type.id}`)}>See equipment</Button>
-                  : <Button variant="primary" icon="power" onClick={toggleActive}>Reactivate</Button>}
+                  ? <Button variant="secondary" icon="plus" onClick={() => navigate(`/equipment?type=${rule.type.id}`)}>{t('admin.ruleDetail.empty.seeEquipment')}</Button>
+                  : <Button variant="primary" icon="power" onClick={toggleActive}>{t('admin.ruleDetail.action.reactivate')}</Button>}
               />
             )}
             {hidden ? (
               <div className="note-strip">
                 <Icon name="info" size={15} />
-                <p><strong>{plural(hidden, 'occurrence')}</strong> hidden because the equipment is deactivated. Dates are preserved.</p>
+                <p>{t('admin.ruleDetail.hiddenNote', { count: hidden })}</p>
               </div>
             ) : null}
           </motion.div>
@@ -156,7 +160,7 @@ export function RuleDetail({ id }: { id: string }) {
             {history.length ? (
               <div className="stack-list">{history.map((c) => <CompletionRow key={c.id} completion={c} onOpen={() => setViewing(c.id)} />)}</div>
             ) : (
-              <EmptyState icon="history" title="Not completed yet" body="Once this maintenance is carried out, every completion appears here with its photo." />
+              <EmptyState icon="history" title={t('admin.ruleDetail.empty.historyTitle')} body={t('admin.ruleDetail.empty.historyBody')} />
             )}
           </motion.div>
         ) : null}
@@ -177,7 +181,7 @@ export function RuleDetail({ id }: { id: string }) {
                   </motion.li>
                 ))}
               </ol>
-            ) : <EmptyState icon="activity" title="No changes recorded" />}
+            ) : <EmptyState icon="activity" title={t('admin.ruleDetail.empty.activityTitle')} />}
           </motion.div>
         ) : null}
         </motion.div>

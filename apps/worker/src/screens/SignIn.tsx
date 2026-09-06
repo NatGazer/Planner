@@ -1,13 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useSession } from '@ui/lib/session';
+import { useT } from '@ui/lib/i18n';
 import { Button } from '@ui/components/Button';
 import { TextField } from '@ui/components/Field';
+import { LanguagePicker } from '@ui/components/LanguagePicker';
 import { usePrefersReducedMotion } from '@ui/anim/hooks';
 import { spring } from '@ui/anim/motion';
 
 export function SignIn() {
   const { signIn, error } = useSession();
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -55,7 +58,7 @@ export function SignIn() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...spring.glide, delay: 0.2 }}
       >
-        Sign in to see what needs doing today.
+        {t('worker.signIn.lede')}
       </motion.p>
 
       <motion.form
@@ -68,16 +71,27 @@ export function SignIn() {
           : { opacity: 1, y: 0, filter: 'blur(0px)' }}
         transition={shake ? { x: { duration: 0.4 }, default: { ...spring.glide, delay: 0.26 } } : { ...spring.glide, delay: 0.26 }}
       >
-        <TextField label="Email" type="email" inputMode="email" autoComplete="username" required
-          value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" />
-        <TextField label="Password" type="password" autoComplete="current-password" required
+        <TextField label={t('worker.signIn.email')} type="email" inputMode="email" autoComplete="username" required
+          value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('worker.signIn.email.placeholder')} />
+        <TextField label={t('worker.signIn.password')} type="password" autoComplete="current-password" required
           value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" error={error} />
-        <Button type="submit" variant="primary" size="xl" block loading={busy}>Sign in</Button>
+        <Button type="submit" variant="primary" size="xl" block loading={busy}>{t('common.signIn')}</Button>
       </motion.form>
+
+      {/* Before the password, not after it: somebody who reads no English
+          has to be able to change the language to get *in*. */}
+      <motion.div
+        className="w-signin__lang"
+        initial={reduced ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...spring.glide, delay: 0.34 }}
+      >
+        <LanguagePicker />
+      </motion.div>
 
       <motion.p className="w-signin__demo"
         initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
-        Demo — <code>tomas@fieldworks.example</code> · <code>worker1234</code>
+        {t('worker.signIn.demo')} <code>tomas@fieldworks.example</code> · <code>worker1234</code>
       </motion.p>
     </div>
   );

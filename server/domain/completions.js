@@ -30,35 +30,35 @@ function submitCompletion(db, { taskId, employee, photoId, comment }) {
 
   return db.transaction((tx) => {
     const task = tx.get(`SELECT * FROM maintenance_tasks WHERE id = ?`, [taskId]);
-    if (!task) throw notFound('That task no longer exists.');
+    if (!task) throw notFound('That task no longer exists.', { key: 'server.taskGone' });
     if (task.status !== 'pending') {
-      throw conflict('ALREADY_COMPLETED', 'Already completed — someone got to this one first.');
+      throw conflict('ALREADY_COMPLETED', 'Already completed — someone got to this one first.', { key: 'server.alreadyCompleted' });
     }
 
     const equipment = tx.get(`SELECT * FROM equipment WHERE id = ?`, [task.equipment_id]);
     const rule = tx.get(`SELECT * FROM maintenance_rules WHERE id = ?`, [task.rule_id]);
-    if (!equipment || !rule) throw notFound('That task no longer exists.');
+    if (!equipment || !rule) throw notFound('That task no longer exists.', { key: 'server.taskGone' });
     if (!equipment.active || equipment.archived) {
-      throw conflict('EQUIPMENT_INACTIVE', `${equipment.name} has been deactivated. Nothing to submit.`);
+      throw conflict('EQUIPMENT_INACTIVE', `${equipment.name} has been deactivated. Nothing to submit.`, { key: 'server.equipmentDeactivated', params: { name: equipment.name } });
     }
     if (!rule.active || rule.archived) {
-      throw conflict('RULE_INACTIVE', `"${rule.title}" has been deactivated. Nothing to submit.`);
+      throw conflict('RULE_INACTIVE', `"${rule.title}" has been deactivated. Nothing to submit.`, { key: 'server.ruleDeactivated', params: { title: rule.title } });
     }
     // The item has been moved to another type since this occurrence opened, so
     // the rule no longer applies to it. The row stays on file — dormant, not
     // deleted — but it is not work anybody should be closing.
     if (rule.type_id !== equipment.type_id) {
-      throw conflict('RULE_NOT_APPLICABLE', `${equipment.name} is no longer a "${rule.title}" item. Nothing to submit.`);
+      throw conflict('RULE_NOT_APPLICABLE', `${equipment.name} is no longer a "${rule.title}" item. Nothing to submit.`, { key: 'server.ruleNotApplicable', params: { name: equipment.name, title: rule.title } });
     }
     const type = tx.get(`SELECT * FROM equipment_types WHERE id = ?`, [equipment.type_id]);
 
     // The photo must exist, must belong to the employee submitting, and must
     // not already back another completion.
-    if (!photoId) throw badRequest('PHOTO_REQUIRED', 'A photo of the completed work is required.');
+    if (!photoId) throw badRequest('PHOTO_REQUIRED', 'A photo of the completed work is required.', { key: 'server.photoRequired' });
     const photo = tx.get(`SELECT * FROM photos WHERE id = ?`, [photoId]);
-    if (!photo) throw badRequest('PHOTO_REQUIRED', 'That photo upload could not be found. Please attach it again.');
-    if (photo.uploaded_by !== employee.id) throw forbidden('That photo was uploaded by someone else.');
-    if (photo.claimed) throw badRequest('PHOTO_REUSED', 'That photo is already attached to another completion.');
+    if (!photo) throw badRequest('PHOTO_REQUIRED', 'That photo upload could not be found. Please attach it again.', { key: 'server.photoMissing' });
+    if (photo.uploaded_by !== employee.id) throw forbidden('That photo was uploaded by someone else.', { key: 'server.photoNotYours' });
+    if (photo.claimed) throw badRequest('PHOTO_REUSED', 'That photo is already attached to another completion.', { key: 'server.photoReused' });
 
     const completedAt = nowInstant();                                    // server-recorded, never client-supplied
     const completedOn = instantToBusinessDate(completedAt, config.businessTimezone);
@@ -69,7 +69,7 @@ function submitCompletion(db, { taskId, employee, photoId, comment }) {
       [completedAt, taskId],
     );
     if (closed.changes !== 1) {
-      throw conflict('ALREADY_COMPLETED', 'Already completed — someone got to this one first.');
+      throw conflict('ALREADY_COMPLETED', 'Already completed — someone got to this one first.', { key: 'server.alreadyCompleted' });
     }
 
     const completionId = newId('comp');
@@ -97,9 +97,9 @@ function submitCompletion(db, { taskId, employee, photoId, comment }) {
         // backs one. Both mean: this submission is not the one that counts.
         const claimed = tx.get('SELECT id FROM completions WHERE photo_id = ?', [photo.id]);
         if (claimed) {
-          throw badRequest('PHOTO_REUSED', 'That photo is already attached to another completion.');
+          throw badRequest('PHOTO_REUSED', 'That photo is already attached to another completion.', { key: 'server.photoReused' });
         }
-        throw conflict('ALREADY_COMPLETED', 'Already completed — someone got to this one first.');
+        throw conflict('ALREADY_COMPLETED', 'Already completed — someone got to this one first.', { key: 'server.alreadyCompleted' });
       }
       throw err;
     }

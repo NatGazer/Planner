@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from './Icon';
-import { api, ApiError } from '../lib/api';
+import { api } from '../lib/api';
+import { errorMessage } from '../lib/errors';
+import { useT } from '../lib/i18n';
 import { usePrefersReducedMotion } from '../anim/hooks';
 
 export interface CapturedPhoto {
@@ -14,6 +16,7 @@ export interface PhotoCaptureProps {
   value: CapturedPhoto | null;
   onChange: (photo: CapturedPhoto | null) => void;
   disabled?: boolean;
+  /** Already-translated text: the screen owns the wording, this owns the layout. */
   label?: string;
   hint?: string;
   error?: string | null;
@@ -48,7 +51,8 @@ async function shrink(file: File): Promise<Blob> {
   }
 }
 
-export function PhotoCapture({ value, onChange, disabled, label = 'Photo of the completed work', hint, error }: PhotoCaptureProps) {
+export function PhotoCapture({ value, onChange, disabled, label, hint, error }: PhotoCaptureProps) {
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   const cameraRef = useRef<HTMLInputElement | null>(null);
   const libraryRef = useRef<HTMLInputElement | null>(null);
@@ -69,13 +73,13 @@ export function PhotoCapture({ value, onChange, disabled, label = 'Photo of the 
       objectUrl.current = URL.createObjectURL(blob);
       onChange({ photoId: result.photoId, previewUrl: objectUrl.current, byteSize: result.byteSize });
     } catch (err) {
-      setLocalError(err instanceof ApiError ? err.message : 'That photo could not be uploaded. Please try again.');
+      setLocalError(errorMessage(t, err, 'ui.photo.failed'));
     } finally {
       setBusy(false);
       if (cameraRef.current) cameraRef.current.value = '';
       if (libraryRef.current) libraryRef.current.value = '';
     }
-  }, [onChange]);
+  }, [onChange, t]);
 
   const clear = useCallback(() => {
     if (value) void api.del(`/api/worker/photos/${value.photoId}`).catch(() => { /* a stray draft is harmless */ });
@@ -88,8 +92,8 @@ export function PhotoCapture({ value, onChange, disabled, label = 'Photo of the 
   return (
     <div className={`capture${shown ? ' capture--error' : ''}`}>
       <div className="capture__head">
-        <span className="capture__label">{label}</span>
-        <span className="capture__required">Required</span>
+        <span className="capture__label">{label ?? t('ui.photo.defaultLabel')}</span>
+        <span className="capture__required">{t('ui.field.required')}</span>
       </div>
 
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden
@@ -107,7 +111,7 @@ export function PhotoCapture({ value, onChange, disabled, label = 'Photo of the 
             exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.16 } }}
             transition={{ type: 'spring', stiffness: 320, damping: 26 }}
           >
-            <img src={value.previewUrl} alt="The photo you are about to submit" />
+            <img src={value.previewUrl} alt={t('ui.photo.previewAlt')} />
             <motion.span
               className="capture__check"
               initial={reduced ? false : { scale: 0 }}
@@ -117,7 +121,7 @@ export function PhotoCapture({ value, onChange, disabled, label = 'Photo of the 
               <Icon name="check" size={16} strokeWidth={2.6} />
             </motion.span>
             <button type="button" className="capture__retake" onClick={clear} disabled={disabled || busy}>
-              <Icon name="refresh" size={15} /> Retake
+              <Icon name="refresh" size={15} /> {t('ui.photo.retake')}
             </button>
           </motion.div>
         ) : (
@@ -137,10 +141,10 @@ export function PhotoCapture({ value, onChange, disabled, label = 'Photo of the 
               transition={{ type: 'spring', stiffness: 520, damping: 30 }}
             >
               {busy ? <span className="btn__spinner" /> : <Icon name="camera" size={26} />}
-              <span>{busy ? 'Uploading…' : 'Take a photo'}</span>
+              <span>{busy ? t('ui.photo.uploading') : t('ui.photo.take')}</span>
             </motion.button>
             <button type="button" className="capture__secondary" onClick={() => libraryRef.current?.click()} disabled={disabled || busy}>
-              <Icon name="image" size={15} /> Choose from library
+              <Icon name="image" size={15} /> {t('ui.photo.choose')}
             </button>
           </motion.div>
         )}

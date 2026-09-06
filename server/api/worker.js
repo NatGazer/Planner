@@ -48,7 +48,7 @@ function register(router, ctx) {
     const t = today();
     const task = queries.taskById(db, params.id, t);
     if (!task || task.status !== 'pending' || !task.equipment.active || !task.rule.active || !task.rule.applies) {
-      throw notFound('That task is no longer outstanding.');
+      throw notFound('That task is no longer outstanding.', { key: 'server.taskNotOutstanding' });
     }
     send(res, 200, { today: t, task });
   });
@@ -57,10 +57,10 @@ function register(router, ctx) {
     const actor = actorOrThrow(ctx, req);
     const body = await readJson(req);
     if (body.confirmed !== true) {
-      throw badRequest('CONFIRMATION_REQUIRED', 'Tick "Maintenance completed" before submitting.', { field: 'confirmed' });
+      throw badRequest('CONFIRMATION_REQUIRED', 'Tick "Maintenance completed" before submitting.', { field: 'confirmed', key: 'server.tickConfirm' });
     }
     if (!body.photoId) {
-      throw badRequest('PHOTO_REQUIRED', 'Add one photo of the completed work.', { field: 'photoId' });
+      throw badRequest('PHOTO_REQUIRED', 'Add one photo of the completed work.', { field: 'photoId', key: 'server.addOnePhoto' });
     }
     const result = submitCompletion(db, {
       taskId: params.id,

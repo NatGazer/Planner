@@ -15,10 +15,32 @@ const ACCENTS = ['aurora', 'ember', 'cobalt', 'orchid', 'lime', 'sunset', 'ice',
 const ICONS = ['cube', 'fan', 'bolt', 'drop', 'gear', 'flame', 'wave', 'shield', 'truck', 'leaf', 'chip', 'lift'];
 
 const str = (v) => (v == null ? '' : String(v).trim());
-function need(value, field, max = 120) {
+
+/**
+ * The fields a person can fail to fill in. Each one carries three things: the
+ * English label for the server's own message, the translation key an app uses
+ * to say the same thing in its reader's language, and the name of the form
+ * control to highlight — which is not the same string as the label, and used
+ * not to be sent at all, so a required-field error highlighted nothing.
+ */
+const FIELDS = {
+  typeName: { label: 'Type name', key: 'field.typeName', field: 'name' },
+  assetCode: { label: 'Asset code', key: 'field.assetCode', field: 'code' },
+  equipmentName: { label: 'Equipment name', key: 'field.equipmentName', field: 'name' },
+  equipmentType: { label: 'Equipment type', key: 'field.equipmentType', field: 'typeId' },
+  taskTitle: { label: 'Task title', key: 'field.taskTitle', field: 'title' },
+};
+
+function need(value, spec, max = 120) {
   const s = str(value);
-  if (!s) throw badRequest('VALIDATION', `${field} is required.`, { field });
-  if (s.length > max) throw badRequest('VALIDATION', `${field} must be ${max} characters or fewer.`, { field });
+  if (!s) {
+    throw badRequest('VALIDATION', `${spec.label} is required.`,
+      { field: spec.field, key: 'server.required', params: { fieldKey: spec.key } });
+  }
+  if (s.length > max) {
+    throw badRequest('VALIDATION', `${spec.label} must be ${max} characters or fewer.`,
+      { field: spec.field, key: 'server.tooLong', params: { fieldKey: spec.key, max } });
+  }
   return s;
 }
 
@@ -40,14 +62,14 @@ function listTypes(db) {
 }
 
 function createType(db, { name, accent, icon }, actor) {
-  const clean = { name: need(name, 'Type name'), accent: ACCENTS.includes(accent) ? accent : 'aurora', icon: ICONS.includes(icon) ? icon : 'cube' };
+  const clean = { name: need(name, FIELDS.typeName), accent: ACCENTS.includes(accent) ? accent : 'aurora', icon: ICONS.includes(icon) ? icon : 'cube' };
   return db.transaction((tx) => {
     const id = newId('type');
     try {
       tx.run(`INSERT INTO equipment_types (id, name, accent, icon, archived, created_at) VALUES (?,?,?,?,0,?)`,
         [id, clean.name, clean.accent, clean.icon, nowInstant()]);
     } catch (err) {
-      if (isUniqueViolation(err)) throw conflict('DUPLICATE_NAME', `An equipment type called "${clean.name}" already exists.`);
+      if (isUniqueViolation(err)) throw conflict('DUPLICATE_NAME', `An equipment type called "${clean.name}" already exists.`, { field: 'name', key: 'server.typeNameTaken', params: { name: clean.name } });
       throw err;
     }
     audit.record(tx, { actor, action: 'type.created', entity: 'equipment_type', entityId: id, summary: `Created equipment type "${clean.name}"`, detail: clean });
@@ -58,16 +80,16 @@ function createType(db, { name, accent, icon }, actor) {
 function updateType(db, id, patch, actor) {
   return db.transaction((tx) => {
     const before = tx.get('SELECT * FROM equipment_types WHERE id = ? AND archived = 0', [id]);
-    if (!before) throw notFound('That equipment type no longer exists.');
+    if (!before) throw notFound('That equipment type no longer exists.', { key: 'server.typeGone' });
     const next = {
-      name: patch.name === undefined ? before.name : need(patch.name, 'Type name'),
+      name: patch.name === undefined ? before.name : need(patch.name, FIELDS.typeName),
       accent: patch.accent === undefined ? before.accent : (ACCENTS.includes(patch.accent) ? patch.accent : before.accent),
       icon: patch.icon === undefined ? before.icon : (ICONS.includes(patch.icon) ? patch.icon : before.icon),
     };
     try {
       tx.run('UPDATE equipment_types SET name = ?, accent = ?, icon = ? WHERE id = ?', [next.name, next.accent, next.icon, id]);
     } catch (err) {
-      if (isUniqueViolation(err)) throw conflict('DUPLICATE_NAME', `An equipment type called "${next.name}" already exists.`);
+      if (isUniqueViolation(err)) throw conflict('DUPLICATE_NAME', `An equipment type called "${next.name}" already exists.`, { field: 'name', key: 'server.typeNameTaken', params: { name: next.name } });
       throw err;
     }
     audit.record(tx, { actor, action: 'type.updated', entity: 'equipment_type', entityId: id, summary: `Updated equipment type "${next.name}"`, detail: { before: { name: before.name, accent: before.accent, icon: before.icon }, after: next } });
@@ -79,9 +101,9 @@ function updateType(db, id, patch, actor) {
 function archiveType(db, id, actor) {
   return db.transaction((tx) => {
     const t = tx.get('SELECT * FROM equipment_types WHERE id = ? AND archived = 0', [id]);
-    if (!t) throw notFound('That equipment type no longer exists.');
+    if (!t) throw notFound('That equipment type no longer exists.', { key: 'server.typeGone' });
     const live = tx.get('SELECT COUNT(*) AS n FROM equipment WHERE type_id = ? AND archived = 0', [id]).n;
-    if (live > 0) throw conflict('TYPE_IN_USE', `${live} piece${live === 1 ? '' : 's'} of equipment still use this type. Move or archive them first.`);
+    if (live > 0) throw conflict('TYPE_IN_USE', `${live} piece${live === 1 ? '' : 's'} of equipment still use this type. Move or archive them first.`, { key: 'server.typeInUse', params: { count: live } });
     tx.run('UPDATE equipment_types SET archived = 1 WHERE id = ?', [id]);
     tx.run('UPDATE maintenance_rules SET archived = 1 WHERE type_id = ?', [id]);
     audit.record(tx, { actor, action: 'type.archived', entity: 'equipment_type', entityId: id, summary: `Archived equipment type "${t.name}"` });
@@ -135,17 +157,17 @@ function getEquipment(db, id) {
 
 function createEquipment(db, { code, name, typeId, location, active = true, firstDueDate = null }, actor, { today }) {
   const clean = {
-    code: need(code, 'Asset code', 40),
-    name: need(name, 'Equipment name'),
-    typeId: need(typeId, 'Equipment type', 64),
+    code: need(code, FIELDS.assetCode, 40),
+    name: need(name, FIELDS.equipmentName),
+    typeId: need(typeId, FIELDS.equipmentType, 64),
     location: str(location).slice(0, 160) || null,
     active: active !== false,
   };
-  if (firstDueDate && !isValidDate(firstDueDate)) throw badRequest('VALIDATION', 'First due date must be a real calendar date.', { field: 'firstDueDate' });
+  if (firstDueDate && !isValidDate(firstDueDate)) throw badRequest('VALIDATION', 'First due date must be a real calendar date.', { field: 'firstDueDate', key: 'server.badFirstDue' });
 
   return db.transaction((tx) => {
     const type = tx.get('SELECT * FROM equipment_types WHERE id = ? AND archived = 0', [clean.typeId]);
-    if (!type) throw badRequest('VALIDATION', 'Pick an equipment type that still exists.', { field: 'typeId' });
+    if (!type) throw badRequest('VALIDATION', 'Pick an equipment type that still exists.', { field: 'typeId', key: 'server.pickRealType' });
 
     const id = newId('eq');
     const ts = nowInstant();
@@ -154,7 +176,7 @@ function createEquipment(db, { code, name, typeId, location, active = true, firs
               VALUES (?,?,?,?,?,?,0,?,?)`,
         [id, clean.code, clean.name, clean.typeId, clean.location, clean.active ? 1 : 0, ts, ts]);
     } catch (err) {
-      if (isUniqueViolation(err)) throw conflict('DUPLICATE_CODE', `Asset code "${clean.code}" is already in use.`, { field: 'code' });
+      if (isUniqueViolation(err)) throw conflict('DUPLICATE_CODE', `Asset code "${clean.code}" is already in use.`, { field: 'code', key: 'server.codeTaken', params: { code: clean.code } });
       throw err;
     }
     const equipment = tx.get('SELECT * FROM equipment WHERE id = ?', [id]);
@@ -171,11 +193,11 @@ function createEquipment(db, { code, name, typeId, location, active = true, firs
 function updateEquipment(db, id, patch, actor, { today }) {
   return db.transaction((tx) => {
     const before = tx.get('SELECT * FROM equipment WHERE id = ? AND archived = 0', [id]);
-    if (!before) throw notFound('That equipment no longer exists.');
+    if (!before) throw notFound('That equipment no longer exists.', { key: 'server.equipmentGone' });
     const next = {
-      code: patch.code === undefined ? before.code : need(patch.code, 'Asset code', 40),
-      name: patch.name === undefined ? before.name : need(patch.name, 'Equipment name'),
-      type_id: patch.typeId === undefined ? before.type_id : need(patch.typeId, 'Equipment type', 64),
+      code: patch.code === undefined ? before.code : need(patch.code, FIELDS.assetCode, 40),
+      name: patch.name === undefined ? before.name : need(patch.name, FIELDS.equipmentName),
+      type_id: patch.typeId === undefined ? before.type_id : need(patch.typeId, FIELDS.equipmentType, 64),
       location: patch.location === undefined ? before.location : (str(patch.location).slice(0, 160) || null),
       active: patch.active === undefined ? before.active : (patch.active ? 1 : 0),
     };
@@ -187,7 +209,7 @@ function updateEquipment(db, id, patch, actor, { today }) {
       tx.run(`UPDATE equipment SET code = ?, name = ?, type_id = ?, location = ?, active = ?, updated_at = ? WHERE id = ?`,
         [next.code, next.name, next.type_id, next.location, next.active, nowInstant(), id]);
     } catch (err) {
-      if (isUniqueViolation(err)) throw conflict('DUPLICATE_CODE', `Asset code "${next.code}" is already in use.`, { field: 'code' });
+      if (isUniqueViolation(err)) throw conflict('DUPLICATE_CODE', `Asset code "${next.code}" is already in use.`, { field: 'code', key: 'server.codeTaken', params: { code: next.code } });
       throw err;
     }
     const after = tx.get('SELECT * FROM equipment WHERE id = ?', [id]);
@@ -229,7 +251,7 @@ function duplicateEquipment(db, id, { code, name, location, count = 1, firstDueD
   const n = Math.max(1, Math.min(Number(count) || 1, 50));
   return db.transaction((tx) => {
     const source = tx.get('SELECT * FROM equipment WHERE id = ? AND archived = 0', [id]);
-    if (!source) throw notFound('That equipment no longer exists.');
+    if (!source) throw notFound('That equipment no longer exists.', { key: 'server.equipmentGone' });
     const created = [];
     const CODE_MAX = 40;
     const taken = new Set(
@@ -245,7 +267,7 @@ function duplicateEquipment(db, id, { code, name, location, count = 1, firstDueD
       const base = code ? String(code) : `${source.code}-COPY`;
       let nextCode;
       if (code && n === 1) {
-        nextCode = need(build(base, ''), 'Asset code', CODE_MAX);
+        nextCode = need(build(base, ''), FIELDS.assetCode, CODE_MAX);
       } else {
         // Walk to the next free suffix, so duplicating the same item twice
         // gives -01 then -02 rather than a collision the person has to
@@ -278,7 +300,7 @@ function duplicateEquipment(db, id, { code, name, location, count = 1, firstDueD
 function archiveEquipment(db, id, actor) {
   return db.transaction((tx) => {
     const e = tx.get('SELECT * FROM equipment WHERE id = ? AND archived = 0', [id]);
-    if (!e) throw notFound('That equipment no longer exists.');
+    if (!e) throw notFound('That equipment no longer exists.', { key: 'server.equipmentGone' });
     tx.run('UPDATE equipment SET archived = 1, active = 0, updated_at = ? WHERE id = ?', [nowInstant(), id]);
     audit.record(tx, {
       actor, action: 'equipment.archived', entity: 'equipment', entityId: id,
@@ -333,23 +355,23 @@ const MAX_INTERVAL = { days: 18262, weeks: 2609, months: 600, years: 50 };
 function validateInterval(value, unit) {
   const v = Number(value);
   if (!Number.isInteger(v) || v <= 0) {
-    throw badRequest('VALIDATION', 'Interval must be a whole number greater than zero.', { field: 'intervalValue' });
+    throw badRequest('VALIDATION', 'Interval must be a whole number greater than zero.', { field: 'intervalValue', key: 'server.intervalWhole' });
   }
   if (!UNITS.has(unit)) {
-    throw badRequest('VALIDATION', 'Interval unit must be days, weeks, months or years.', { field: 'intervalUnit' });
+    throw badRequest('VALIDATION', 'Interval unit must be days, weeks, months or years.', { field: 'intervalUnit', key: 'server.intervalUnit' });
   }
   if (v > MAX_INTERVAL[unit]) {
     throw badRequest('VALIDATION',
       `Intervals are capped at about fifty years, which in ${unit} is ${MAX_INTERVAL[unit]}.`,
-      { field: 'intervalValue' });
+      { field: 'intervalValue', key: 'server.intervalCapped', params: { unitKey: `unit.${unit}`, max: MAX_INTERVAL[unit] } });
   }
   return v;
 }
 
 function createRule(db, { typeId, title, instructions, intervalValue, intervalUnit, active = true, firstDueDate = null }, actor, { today }) {
   const clean = {
-    typeId: need(typeId, 'Equipment type', 64),
-    title: need(title, 'Task title', 140),
+    typeId: need(typeId, FIELDS.equipmentType, 64),
+    title: need(title, FIELDS.taskTitle, 140),
     instructions: str(instructions).slice(0, 8000),
     intervalValue: validateInterval(intervalValue, intervalUnit),
     intervalUnit,
@@ -379,10 +401,10 @@ function createRule(db, { typeId, title, instructions, intervalValue, intervalUn
 function updateRule(db, id, patch, actor) {
   return db.transaction((tx) => {
     const before = tx.get('SELECT * FROM maintenance_rules WHERE id = ? AND archived = 0', [id]);
-    if (!before) throw notFound('That maintenance task no longer exists.');
+    if (!before) throw notFound('That maintenance task no longer exists.', { key: 'server.ruleGone' });
     const unit = patch.intervalUnit === undefined ? before.interval_unit : patch.intervalUnit;
     const next = {
-      title: patch.title === undefined ? before.title : need(patch.title, 'Task title', 140),
+      title: patch.title === undefined ? before.title : need(patch.title, FIELDS.taskTitle, 140),
       instructions: patch.instructions === undefined ? before.instructions : str(patch.instructions).slice(0, 8000),
       interval_value: patch.intervalValue === undefined && patch.intervalUnit === undefined
         ? before.interval_value
@@ -423,7 +445,7 @@ function updateRule(db, id, patch, actor) {
 function archiveRule(db, id, actor) {
   return db.transaction((tx) => {
     const r = tx.get('SELECT * FROM maintenance_rules WHERE id = ? AND archived = 0', [id]);
-    if (!r) throw notFound('That maintenance task no longer exists.');
+    if (!r) throw notFound('That maintenance task no longer exists.', { key: 'server.ruleGone' });
     tx.run('UPDATE maintenance_rules SET archived = 1, active = 0, updated_at = ? WHERE id = ?', [nowInstant(), id]);
     audit.record(tx, {
       actor, action: 'rule.archived', entity: 'maintenance_rule', entityId: id,

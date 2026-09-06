@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 import { useEscape, useFocusTrap, usePrefersReducedMotion, useScrollLock } from '../anim/hooks';
+import { useT } from '../lib/i18n';
 
 export interface SheetProps {
   open: boolean;
@@ -31,6 +32,7 @@ export function Sheet({
   open, onClose, title, subtitle, children, footer,
   placement = 'center', size = 'md', dismissible = true, labelledBy,
 }: SheetProps) {
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   useScrollLock(open);
   useEscape(() => { if (dismissible) onClose(); }, open);
@@ -93,7 +95,7 @@ export function Sheet({
                   {subtitle ? <p className="sheet__subtitle">{subtitle}</p> : null}
                 </div>
                 {dismissible ? (
-                  <button type="button" className="sheet__close" onClick={onClose} aria-label="Close">
+                  <button type="button" className="sheet__close" onClick={onClose} aria-label={t('common.close')}>
                     <Icon name="close" size={16} />
                   </button>
                 ) : null}

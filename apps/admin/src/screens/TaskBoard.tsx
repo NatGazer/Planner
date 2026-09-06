@@ -9,8 +9,10 @@ import { Icon } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { SelectField, Segmented, Switch } from '@ui/components/Field';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
+import { errorMessage } from '@ui/lib/errors';
+import { useT, type StringKey } from '@ui/lib/i18n';
 import { groupByUrgency } from '@ui/lib/status';
-import { longDate, plural } from '@ui/lib/format';
+import { longDate } from '@ui/lib/format';
 import type { Task } from '@ui/lib/types';
 import { adminApi } from '../data';
 import { TaskRow } from '../components/primitives';
@@ -18,12 +20,15 @@ import { RescheduleDialog } from '../components/RescheduleDialog';
 
 type Bucket = 'all' | 'overdue' | 'today' | 'week' | 'later';
 
-const BUCKETS: { value: Bucket; label: string; tone?: string }[] = [
-  { value: 'all', label: 'Everything' },
-  { value: 'overdue', label: 'Overdue', tone: 'overdue' },
-  { value: 'today', label: 'Today', tone: 'today' },
-  { value: 'week', label: 'This week', tone: 'soon' },
-  { value: 'later', label: 'Later' },
+// Module-level, so it holds *keys*; the words are resolved with `t` inside the
+// component. Four of them are the shared status names, which is the point:
+// a filter called "This week" must read exactly like the heading it filters to.
+const BUCKETS: { value: Bucket; labelKey: StringKey; tone?: string }[] = [
+  { value: 'all', labelKey: 'admin.tasks.bucket.all' },
+  { value: 'overdue', labelKey: 'status.overdue.short', tone: 'overdue' },
+  { value: 'today', labelKey: 'status.today.short', tone: 'today' },
+  { value: 'week', labelKey: 'status.soon.short', tone: 'soon' },
+  { value: 'later', labelKey: 'status.later.short' },
 ];
 
 /**
@@ -34,6 +39,7 @@ const BUCKETS: { value: Bucket; label: string; tone?: string }[] = [
 export function TaskBoard() {
   const { query, navigate } = useRouter();
   const { signOut } = useSession();
+  const t = useT();
   const reduced = usePrefersReducedMotion();
 
   const [bucket, setBucket] = useState<Bucket>((query.get('bucket') as Bucket) || 'all');
@@ -66,28 +72,30 @@ export function TaskBoard() {
     <div className="page">
       <header className="page__head">
         <div>
-          <h1 className="page__title">Outstanding work</h1>
+          <h1 className="page__title">{t('admin.tasks.title')}</h1>
           <p className="page__lede">
             {counts
-              ? <>{plural(counts.total, 'task')} outstanding{counts.overdue ? <> · <span className="text-overdue">{counts.overdue} overdue</span></> : null}</>
-              : 'Loading the schedule…'}
+              ? <>{t('admin.tasks.outstandingCount', { count: counts.total })}{counts.overdue ? <> · <span className="text-overdue">{t('urgency.overdue', { count: counts.overdue })}</span></> : null}</>
+              : t('admin.tasks.loading')}
           </p>
         </div>
         <div className="page__head-actions">
           <button type="button" className="ghost-link" onClick={() => void list.reload()} disabled={list.refreshing}>
-            <Icon name="refresh" size={14} className={list.refreshing ? 'is-spinning' : undefined} /> Refresh
+            <Icon name="refresh" size={14} className={list.refreshing ? 'is-spinning' : undefined} /> {t('admin.tasks.refresh')}
           </button>
         </div>
       </header>
 
       <div className="filterbar">
         <Segmented
-          ariaLabel="Filter by due status"
+          ariaLabel={t('admin.tasks.filter.status')}
           layoutId="taskbucket"
           value={bucket}
           onChange={(v) => { setBucket(v); navigate(v === 'all' ? '/tasks' : `/tasks?bucket=${v}`, { replace: true }); }}
           options={BUCKETS.map((b) => ({
-            ...b,
+            value: b.value,
+            tone: b.tone,
+            label: t(b.labelKey),
             count: b.value === 'all' ? counts?.total
               : b.value === 'overdue' ? counts?.overdue
                 : b.value === 'today' ? counts?.today
@@ -97,8 +105,8 @@ export function TaskBoard() {
         {onDate ? (
           <div className="filterbar__row">
             <span className="chip is-selected">
-              <Icon name="calendar" size={12} /> Due on {longDate(onDate)}
-              <button type="button" onClick={() => navigate('/tasks')} aria-label="Clear the date filter" style={{ marginLeft: 4, display: 'grid' }}>
+              <Icon name="calendar" size={12} /> {t('admin.tasks.filter.dueOn', { date: longDate(onDate) })}
+              <button type="button" onClick={() => navigate('/tasks')} aria-label={t('admin.tasks.filter.clearDate')} style={{ marginLeft: 4, display: 'grid' }}>
                 <Icon name="close" size={12} />
               </button>
             </span>
@@ -111,31 +119,31 @@ export function TaskBoard() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by asset code, name, location or task"
-              aria-label="Search outstanding work"
+              placeholder={t('admin.tasks.search.placeholder')}
+              aria-label={t('admin.tasks.search.label')}
             />
             {search ? (
-              <button type="button" onClick={() => setSearch('')} aria-label="Clear search"><Icon name="close" size={13} /></button>
+              <button type="button" onClick={() => setSearch('')} aria-label={t('admin.tasks.search.clear')}><Icon name="close" size={13} /></button>
             ) : null}
           </label>
           <SelectField
-            aria-label="Filter by equipment type"
+            aria-label={t('admin.tasks.filter.type')}
             value={typeId}
             onChange={(e) => { setTypeId(e.target.value); setEquipmentId(''); }}
-            placeholder="All types"
-            options={(options.data?.[0].types ?? []).map((t) => ({ value: t.id, label: t.name }))}
+            placeholder={t('admin.tasks.filter.allTypes')}
+            options={(options.data?.[0].types ?? []).map((type) => ({ value: type.id, label: type.name }))}
           />
           <SelectField
-            aria-label="Filter by equipment"
+            aria-label={t('admin.tasks.filter.equipment')}
             value={equipmentId}
             onChange={(e) => setEquipmentId(e.target.value)}
-            placeholder="All equipment"
+            placeholder={t('admin.tasks.filter.allEquipment')}
             options={(options.data?.[1].equipment ?? [])
               .filter((e) => !typeId || e.type.id === typeId)
               .map((e) => ({ value: e.id, label: `${e.code} — ${e.name}` }))}
           />
           <Switch
-            label="Include hidden"
+            label={t('admin.tasks.includeHidden')}
             checked={includeHidden}
             onChange={setIncludeHidden}
           />
@@ -143,19 +151,19 @@ export function TaskBoard() {
       </div>
 
       {list.error && !list.data ? (
-        <ErrorState message={list.error.message} onRetry={() => void list.reload()} />
+        <ErrorState message={errorMessage(t, list.error)} onRetry={() => void list.reload()} />
       ) : !list.data ? (
         <div className="stack-list">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} height={62} radius={16} />)}</div>
       ) : groups.length === 0 ? (
         <EmptyState
           icon={counts?.total === 0 && !debounced ? 'checkCircle' : 'search'}
           tone={counts?.total === 0 && !debounced ? 'good' : 'calm'}
-          title={debounced || typeId || equipmentId ? 'Nothing matches those filters' : 'No outstanding work'}
+          title={debounced || typeId || equipmentId ? t('admin.tasks.empty.filtered') : t('admin.tasks.empty.title')}
           body={debounced || typeId || equipmentId
-            ? 'Try widening the search, or clear the filters to see the whole schedule.'
-            : 'Every scheduled task has been completed. New occurrences appear as they fall due.'}
+            ? t('admin.tasks.empty.filteredBody')
+            : t('admin.tasks.empty.body')}
           action={debounced || typeId || equipmentId
-            ? <Button variant="secondary" icon="close" onClick={() => { setSearch(''); setTypeId(''); setEquipmentId(''); setBucket('all'); }}>Clear filters</Button>
+            ? <Button variant="secondary" icon="close" onClick={() => { setSearch(''); setTypeId(''); setEquipmentId(''); setBucket('all'); }}>{t('admin.tasks.empty.clearFilters')}</Button>
             : undefined}
         />
       ) : (
@@ -165,7 +173,7 @@ export function TaskBoard() {
               <motion.section key={group.bucket} layout className={`task-group ${group.style.className}`} variants={riseIn}>
                 <header className="task-group__head">
                   <span className="task-group__badge"><Icon name={group.style.icon} size={13} /></span>
-                  <h2 className="task-group__title">{group.style.label}</h2>
+                  <h2 className="task-group__title">{t(group.style.labelKey)}</h2>
                   <span className="task-group__count">{group.tasks.length}</span>
                   <span className="task-group__rule" aria-hidden="true" />
                 </header>
@@ -190,9 +198,7 @@ export function TaskBoard() {
         <div className="note-strip">
           <Icon name="info" size={15} />
           <p>
-            Showing the <strong>{list.data.shown}</strong> most urgent of{' '}
-            <strong>{counts?.total}</strong> outstanding tasks — the counts above cover
-            all of them. Filter by type or equipment, or search, to reach the rest.
+            {t('admin.tasks.truncated', { shown: list.data.shown, total: counts?.total ?? 0 })}
           </p>
         </div>
       ) : null}

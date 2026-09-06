@@ -12,15 +12,38 @@ import { TextField } from '@ui/components/Field';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
 import { useToaster } from '@ui/components/Toaster';
 import { ACCENTS, accentClass } from '@ui/lib/status';
-import { ApiError } from '@ui/lib/api';
+import { errorMessage } from '@ui/lib/errors';
+import { useT, type StringKey } from '@ui/lib/i18n';
 import type { EquipmentType } from '@ui/lib/types';
 import { adminApi } from '../data';
+
+/**
+ * The swatches and glyphs are named for screen readers, and `aurora` or `cube`
+ * are code — not words somebody should have to hear, least of all in English
+ * when the rest of the sheet is not. Keys here, words resolved at render.
+ */
+const ACCENT_KEYS: Record<string, StringKey> = {
+  aurora: 'admin.types.accent.aurora', ice: 'admin.types.accent.ice',
+  cobalt: 'admin.types.accent.cobalt', orchid: 'admin.types.accent.orchid',
+  ember: 'admin.types.accent.ember', sunset: 'admin.types.accent.sunset',
+  gold: 'admin.types.accent.gold', lime: 'admin.types.accent.lime',
+};
+
+const SYMBOL_KEYS: Record<string, StringKey> = {
+  cube: 'admin.types.symbol.cube', fan: 'admin.types.symbol.fan',
+  bolt: 'admin.types.symbol.bolt', drop: 'admin.types.symbol.drop',
+  gear: 'admin.types.symbol.gear', flame: 'admin.types.symbol.flame',
+  wave: 'admin.types.symbol.wave', shield: 'admin.types.symbol.shield',
+  truck: 'admin.types.symbol.truck', leaf: 'admin.types.symbol.leaf',
+  chip: 'admin.types.symbol.chip', lift: 'admin.types.symbol.lift',
+};
 
 /**
  * Types are the spine of the whole system: maintenance is defined once per
  * type, and every physical item of that type inherits it.
  */
 export function TypeList() {
+  const t = useT();
   const { navigate } = useRouter();
   const { signOut } = useSession();
   const toaster = useToaster();
@@ -37,25 +60,25 @@ export function TypeList() {
     <div className="page">
       <header className="page__head">
         <div>
-          <h1 className="page__title">Equipment types</h1>
+          <h1 className="page__title">{t('admin.types.title')}</h1>
           <p className="page__lede">
-            Define maintenance once per type. Every item of that type inherits it with a schedule of its own.
+            {t('admin.types.lede')}
           </p>
         </div>
         <div className="page__head-actions">
-          <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>New type</Button>
+          <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>{t('admin.types.add')}</Button>
         </div>
       </header>
 
       {list.error && !list.data ? (
-        <ErrorState message={list.error.message} onRetry={() => void list.reload()} />
+        <ErrorState message={errorMessage(t, list.error)} onRetry={() => void list.reload()} />
       ) : !list.data ? (
         <div className="card-grid">{[0, 1, 2, 3].map((i) => <Skeleton key={i} height={150} radius={20} />)}</div>
       ) : types.length === 0 ? (
         <EmptyState
-          icon="types" title="No equipment types yet"
-          body="Start with a type — “HVAC Unit”, “Forklift”, “Fire Extinguisher” — then define what maintenance it needs."
-          action={<Button variant="primary" icon="plus" onClick={() => setAdding(true)}>New type</Button>}
+          icon="types" title={t('admin.types.empty.title')}
+          body={t('admin.types.empty.body')}
+          action={<Button variant="primary" icon="plus" onClick={() => setAdding(true)}>{t('admin.types.add')}</Button>}
         />
       ) : (
         <motion.div className="card-grid stage" variants={reduced ? stillContainer : listContainer(types.length, 0.03)} initial="hidden" animate="shown">
@@ -78,11 +101,11 @@ export function TypeList() {
         onArchive={editing ? async () => {
           try {
             await adminApi.archiveType(editing.id);
-            toaster.success('Type archived', 'Its history is preserved and stays readable.');
+            toaster.success(t('admin.types.toast.archived'), t('admin.types.toast.archivedBody'));
             setEditing(null);
             await list.reload();
           } catch (err) {
-            toaster.error('Could not archive', err instanceof ApiError ? err.message : 'Please try again.');
+            toaster.error(t('admin.types.toast.archiveFailed'), errorMessage(t, err));
           }
         } : undefined}
       />
@@ -93,6 +116,7 @@ export function TypeList() {
 function TypeCard({ type, onEdit, onEquipment, onRules }: {
   type: EquipmentType; onEdit: () => void; onEquipment: () => void; onRules: () => void;
 }) {
+  const t = useT();
   const tilt = useTilt({ max: 8, scale: 1.018 });
   const reduced = usePrefersReducedMotion();
   return (
@@ -107,7 +131,7 @@ function TypeCard({ type, onEdit, onEquipment, onRules }: {
       <header className="type-card__head">
         <span className="type-card__glyph"><Icon name={type.icon as IconName} size={22} /></span>
         <h2 className="type-card__name">{type.name}</h2>
-        <button type="button" className="type-card__edit" onClick={onEdit} aria-label={`Edit ${type.name}`}>
+        <button type="button" className="type-card__edit" onClick={onEdit} aria-label={t('admin.types.card.edit', { name: type.name })}>
           <Icon name="edit" size={15} />
         </button>
       </header>
@@ -116,24 +140,24 @@ function TypeCard({ type, onEdit, onEquipment, onRules }: {
           onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
           whileTap={reduced ? undefined : { scale: 0.96 }}>
           <span className="type-card__stat-value">{type.activeEquipmentCount}</span>
-          <span className="type-card__stat-label">in service</span>
+          <span className="type-card__stat-label">{t('admin.types.card.inService', { count: type.activeEquipmentCount })}</span>
           {type.equipmentCount !== type.activeEquipmentCount ? (
-            <span className="type-card__stat-note">{type.equipmentCount - type.activeEquipmentCount} deactivated</span>
+            <span className="type-card__stat-note">{t('admin.types.card.equipmentDeactivated', { count: type.equipmentCount - type.activeEquipmentCount })}</span>
           ) : null}
         </motion.button>
         <motion.button type="button" className="type-card__stat" onClick={onRules}
           onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
           whileTap={reduced ? undefined : { scale: 0.96 }}>
           <span className="type-card__stat-value">{type.activeRuleCount}</span>
-          <span className="type-card__stat-label">{type.activeRuleCount === 1 ? 'maintenance task' : 'maintenance tasks'}</span>
+          <span className="type-card__stat-label">{t('admin.types.card.tasks', { count: type.activeRuleCount })}</span>
           {type.ruleCount !== type.activeRuleCount ? (
-            <span className="type-card__stat-note">{type.ruleCount - type.activeRuleCount} deactivated</span>
+            <span className="type-card__stat-note">{t('admin.types.card.tasksDeactivated', { count: type.ruleCount - type.activeRuleCount })}</span>
           ) : null}
         </motion.button>
       </div>
       <footer className="type-card__foot">
-        <button type="button" className="ghost-link" onClick={onEquipment}>Equipment <Icon name="arrowRight" size={13} /></button>
-        <button type="button" className="ghost-link" onClick={onRules}>Maintenance <Icon name="arrowRight" size={13} /></button>
+        <button type="button" className="ghost-link" onClick={onEquipment}>{t('admin.types.card.equipmentLink')} <Icon name="arrowRight" size={13} /></button>
+        <button type="button" className="ghost-link" onClick={onRules}>{t('admin.types.card.maintenanceLink')} <Icon name="arrowRight" size={13} /></button>
       </footer>
     </motion.article>
   );
@@ -142,6 +166,7 @@ function TypeCard({ type, onEdit, onEquipment, onRules }: {
 function TypeForm({ open, existing, onClose, onSaved, onArchive }: {
   open: boolean; existing: EquipmentType | null; onClose: () => void; onSaved: () => void; onArchive?: () => Promise<void>;
 }) {
+  const t = useT();
   const toaster = useToaster();
   const [name, setName] = useState('');
   const [accent, setAccent] = useState<string>('aurora');
@@ -162,44 +187,44 @@ function TypeForm({ open, existing, onClose, onSaved, onArchive }: {
     try {
       if (existing) await adminApi.updateType(existing.id, { name: name.trim(), accent, icon });
       else await adminApi.createType({ name: name.trim(), accent, icon });
-      toaster.success(existing ? 'Type updated' : `“${name.trim()}” added`,
-        existing ? undefined : 'Now define what maintenance it needs.');
+      toaster.success(existing ? t('admin.types.toast.updated') : t('admin.types.toast.added', { name: name.trim() }),
+        existing ? undefined : t('admin.types.toast.addedBody'));
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save. Please try again.');
+      setError(errorMessage(t, err, 'admin.types.form.saveFailed'));
     } finally { setBusy(false); }
   };
 
   return (
     <Sheet
       open={open} onClose={onClose}
-      title={existing ? 'Edit equipment type' : 'New equipment type'}
+      title={existing ? t('admin.types.form.editTitle') : t('admin.types.form.newTitle')}
       size="sm"
       footer={
         <>
           {onArchive ? (
-            <Button variant="danger" icon="archive" onClick={() => void onArchive()}>Archive</Button>
+            <Button variant="danger" icon="archive" onClick={() => void onArchive()}>{t('admin.types.form.archive')}</Button>
           ) : <span />}
           <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
             <Button variant="primary" loading={busy} disabled={!name.trim()} onClick={save}>
-              {existing ? 'Save changes' : 'Create type'}
+              {existing ? t('admin.types.form.save') : t('admin.types.form.create')}
             </Button>
           </div>
         </>
       }
     >
-      <TextField label="Name" required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="HVAC Unit" error={error} />
+      <TextField label={t('admin.types.form.name')} required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder={t('admin.types.form.namePlaceholder')} error={error} />
 
       <div className="picker">
-        <span className="picker__label">Colour</span>
+        <span className="picker__label">{t('admin.types.form.colour')}</span>
         <div className="picker__row">
           {ACCENTS.map((a) => (
             <button
               key={a} type="button"
               className={`swatch ${accentClass(a)}${accent === a ? ' is-selected' : ''}`}
-              onClick={() => setAccent(a)} aria-label={a} aria-pressed={accent === a}
+              onClick={() => setAccent(a)} aria-label={t(ACCENT_KEYS[a])} aria-pressed={accent === a}
             >
               <span className="swatch__fill" />
             </button>
@@ -208,13 +233,13 @@ function TypeForm({ open, existing, onClose, onSaved, onArchive }: {
       </div>
 
       <div className="picker">
-        <span className="picker__label">Symbol</span>
+        <span className="picker__label">{t('admin.types.form.symbol')}</span>
         <div className="picker__row picker__row--wrap">
           {TYPE_ICONS.map((i) => (
             <button
               key={i} type="button"
               className={`glyph-option ${accentClass(accent)}${icon === i ? ' is-selected' : ''}`}
-              onClick={() => setIcon(i)} aria-label={i} aria-pressed={icon === i}
+              onClick={() => setIcon(i)} aria-label={t(SYMBOL_KEYS[i])} aria-pressed={icon === i}
             >
               <Icon name={i} size={18} />
             </button>
@@ -224,8 +249,7 @@ function TypeForm({ open, existing, onClose, onSaved, onArchive }: {
 
       {onArchive ? (
         <p className="sheet__note sheet__note--quiet">
-          Archiving hides a type and its maintenance tasks. It is only possible once no equipment uses it.
-          Completed history always survives — it carries its own copy of the details.
+          {t('admin.types.form.archiveNote')}
         </p>
       ) : null}
     </Sheet>

@@ -10,9 +10,11 @@ import { TextArea } from '@ui/components/Field';
 import { PhotoCapture, type CapturedPhoto } from '@ui/components/PhotoCapture';
 import { ErrorState, Skeleton } from '@ui/components/states';
 import { useToaster } from '@ui/components/Toaster';
-import { accentClass, STATUS } from '@ui/lib/status';
+import { accentClass, dueLabel, STATUS } from '@ui/lib/status';
 import { cadence, longDate } from '@ui/lib/format';
 import { ApiError } from '@ui/lib/api';
+import { errorMessage, isExpiredSession } from '@ui/lib/errors';
+import { useT } from '@ui/lib/i18n';
 import { spring } from '@ui/anim/motion';
 import { workerApi } from '../data';
 import { SuccessOverlay } from '../components/SuccessOverlay';
@@ -25,6 +27,7 @@ import { SuccessOverlay } from '../components/SuccessOverlay';
 export function TaskDetail({ id }: { id: string }) {
   const { navigate } = useRouter();
   const { signOut } = useSession();
+  const t = useT();
   const toaster = useToaster();
   const reduced = usePrefersReducedMotion();
 
@@ -63,12 +66,10 @@ export function TaskDetail({ id }: { id: string }) {
       const result = await workerApi.complete(id, { photoId: photo.photoId, comment: comment.trim() || undefined });
       setSuccess({ nextDue: result.nextTask.dueDate, title: detail.data?.task.rule.title ?? 'Maintenance' });
     } catch (err) {
-      const expired = err instanceof ApiError && err.status === 401;
+      const expired = isExpiredSession(err);
       const message = expired
-        ? 'Your session has ended. Sign in again and the job will still be here.'
-        : err instanceof ApiError
-          ? err.message
-          : 'Could not reach the server. The job is still open — try again.';
+        ? t('worker.detail.sessionEnded')
+        : errorMessage(t, err, 'worker.detail.stillOpen');
       setFailure(message);
       // A session that ended mid-form leaves the worker on a screen that can
       // never succeed. Say so, let them read it, then hand them the sign-in.
@@ -79,13 +80,13 @@ export function TaskDetail({ id }: { id: string }) {
         failureRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
       });
       if (err instanceof ApiError && (err.code === 'ALREADY_COMPLETED' || err.status === 404)) {
-        toaster.info('Already done', 'Someone else submitted this one. Here is the up-to-date list.');
+        toaster.info(t('worker.detail.toast.alreadyDone'), t('worker.detail.toast.alreadyDoneBody'));
         setTimeout(() => navigate('/'), 900);
       }
     } finally {
       setBusy(false);
     }
-  }, [photo, done, busy, id, comment, detail.data, toaster, navigate, reduced, signOut]);
+  }, [photo, done, busy, id, comment, detail.data, toaster, navigate, reduced, signOut, t]);
 
   if (detail.error && !detail.data) {
     return (
@@ -93,11 +94,11 @@ export function TaskDetail({ id }: { id: string }) {
         <TopBar onBack={() => navigate('/')} />
         <div className="w-detail__body">
           <ErrorState
-            message={detail.error.status === 404 ? 'This job is no longer outstanding.' : detail.error.message}
-            detail={detail.error.status === 404 ? 'Somebody may have completed it, or it may have been deactivated.' : undefined}
+            message={detail.error.status === 404 ? t('worker.detail.gone') : errorMessage(t, detail.error)}
+            detail={detail.error.status === 404 ? t('worker.detail.goneDetail') : undefined}
             onRetry={detail.error.status === 404 ? undefined : () => void detail.reload()}
           />
-          <Button variant="secondary" icon="chevronLeft" block onClick={() => navigate('/')}>Back to the list</Button>
+          <Button variant="secondary" icon="chevronLeft" block onClick={() => navigate('/')}>{t('worker.detail.backToList')}</Button>
         </div>
       </div>
     );
@@ -120,8 +121,8 @@ export function TaskDetail({ id }: { id: string }) {
   const s = STATUS[task.due.bucket];
   const ready = done && !!photo;
   const satisfied = (done ? 1 : 0) + (photo ? 1 : 0);
-  const missing = !done ? 'Tick “Maintenance completed” first'
-    : 'Add one photo of the work';
+  const missing = !done ? t('worker.detail.missing.tick')
+    : t('worker.detail.missing.photo');
 
   return (
     <div className={`w-detail ${accentClass(task.equipment.type?.accent ?? 'aurora')}`}>
@@ -135,7 +136,7 @@ export function TaskDetail({ id }: { id: string }) {
           transition={spring.glide}
         >
           <span className={`w-hero__due ${s.className}`}>
-            <Icon name={s.icon} size={13} /> {task.due.label}
+            <Icon name={s.icon} size={13} /> {dueLabel(t, task.due)}
           </span>
           <h1 className="w-hero__title">{task.rule.title}</h1>
           <p className="w-hero__cadence">{cadence(task.rule.intervalValue, task.rule.intervalUnit)}</p>
@@ -152,11 +153,11 @@ export function TaskDetail({ id }: { id: string }) {
 
           <dl className="w-hero__facts">
             <div>
-              <dt><Icon name="pin" size={12} /> Where</dt>
-              <dd>{task.equipment.location ?? 'No location recorded'}</dd>
+              <dt><Icon name="pin" size={12} /> {t('worker.detail.where')}</dt>
+              <dd>{task.equipment.location ?? t('worker.detail.noLocation')}</dd>
             </div>
             <div>
-              <dt><Icon name="calendar" size={12} /> Due</dt>
+              <dt><Icon name="calendar" size={12} /> {t('worker.detail.due')}</dt>
               <dd>{longDate(task.dueDate)}</dd>
             </div>
           </dl>
@@ -169,7 +170,7 @@ export function TaskDetail({ id }: { id: string }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring.glide, delay: 0.06 }}
           >
-            <h2><Icon name="list" size={14} /> What to do</h2>
+            <h2><Icon name="list" size={14} /> {t('worker.detail.instructions')}</h2>
             <p>{task.rule.instructions}</p>
           </motion.section>
         ) : null}
@@ -180,7 +181,7 @@ export function TaskDetail({ id }: { id: string }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring.glide, delay: 0.12 }}
         >
-          <h2 className="w-submit__title">Finish the job</h2>
+          <h2 className="w-submit__title">{t('worker.detail.finish')}</h2>
 
           <button
             type="button"
@@ -207,7 +208,7 @@ export function TaskDetail({ id }: { id: string }) {
                 ) : null}
               </AnimatePresence>
             </motion.span>
-            <span className="w-check__label">Maintenance completed</span>
+            <span className="w-check__label">{t('worker.detail.check')}</span>
           </button>
 
           <div ref={captureRef}>
@@ -215,16 +216,16 @@ export function TaskDetail({ id }: { id: string }) {
               value={photo}
               onChange={setPhoto}
               disabled={busy}
-              hint="One photo showing the work. It is stored with the record and only administrators can see it."
+              hint={t('worker.detail.photoHint')}
             />
           </div>
 
           <TextArea
-            label="Anything to add?"
+            label={t('worker.detail.comment')}
             rows={3}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Optional — parts used, something you noticed, anything worth knowing next time."
+            placeholder={t('worker.detail.comment.placeholder')}
             maxLength={2000}
             disabled={busy}
           />
@@ -272,7 +273,9 @@ export function TaskDetail({ id }: { id: string }) {
             aria-describedby="submit-state"
             icon={ready ? 'check' : undefined}
           >
-            {busy ? 'Submitting…' : ready ? 'Submit completion' : `Submit — ${satisfied} of 2 ready`}
+            {busy ? t('worker.detail.submitting')
+              : ready ? t('worker.detail.submit')
+                : t('worker.detail.submit.progress', { count: satisfied })}
           </Button>
         </motion.div>
       </div>
@@ -289,11 +292,12 @@ export function TaskDetail({ id }: { id: string }) {
 }
 
 function TopBar({ onBack }: { onBack: () => void }) {
+  const t = useT();
   return (
     <header className="w-topbar">
       <button type="button" className="w-back" onClick={onBack}>
         <Icon name="chevronLeft" size={20} />
-        <span>All jobs</span>
+        <span>{t('worker.detail.allJobs')}</span>
       </button>
     </header>
   );

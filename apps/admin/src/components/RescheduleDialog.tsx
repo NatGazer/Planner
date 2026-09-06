@@ -3,9 +3,10 @@ import { Sheet } from '@ui/components/Sheet';
 import { Button } from '@ui/components/Button';
 import { TextArea, TextField } from '@ui/components/Field';
 import { useToaster } from '@ui/components/Toaster';
-import { ApiError } from '@ui/lib/api';
+import { errorMessage } from '@ui/lib/errors';
+import { useT, type StringKey } from '@ui/lib/i18n';
 import { longDate, shiftDate } from '@ui/lib/format';
-import { STATUS } from '@ui/lib/status';
+import { dueLabel, STATUS } from '@ui/lib/status';
 import type { Task } from '@ui/lib/types';
 import { adminApi } from '../data';
 
@@ -22,6 +23,7 @@ export interface RescheduleDialogProps {
  * reach into a running schedule by hand — and it is always audited.
  */
 export function RescheduleDialog({ task, today, onClose, onDone }: RescheduleDialogProps) {
+  const t = useT();
   const toaster = useToaster();
   const [dueDate, setDueDate] = useState('');
   const [reason, setReason] = useState('');
@@ -36,11 +38,13 @@ export function RescheduleDialog({ task, today, onClose, onDone }: RescheduleDia
   const current = task?.dueDate ?? '';
   const value = dueDate || current;
 
-  const shortcuts = useMemo(() => (today ? [
-    { label: 'Today', value: today },
-    { label: 'Tomorrow', value: shiftDate(today, 1) },
-    { label: 'In a week', value: shiftDate(today, 7) },
-    { label: 'In a month', value: shiftDate(today, 30) },
+  // The chips hold *keys*; the words are resolved with `t` where they render,
+  // so the list does not have to be rebuilt when the language changes.
+  const shortcuts = useMemo<{ labelKey: StringKey; value: string }[]>(() => (today ? [
+    { labelKey: 'admin.reschedule.shortcut.today', value: today },
+    { labelKey: 'admin.reschedule.shortcut.tomorrow', value: shiftDate(today, 1) },
+    { labelKey: 'admin.reschedule.shortcut.week', value: shiftDate(today, 7) },
+    { labelKey: 'admin.reschedule.shortcut.month', value: shiftDate(today, 30) },
   ] : []), [today]);
 
   const submit = async () => {
@@ -49,17 +53,22 @@ export function RescheduleDialog({ task, today, onClose, onDone }: RescheduleDia
     try {
       const result = await adminApi.reschedule(task.id, value, reason.trim() || undefined);
       if (result.changed) {
-        toaster.success('Task rescheduled', `${task.rule.title} on ${task.equipment.code} now falls due ${longDate(value)}.`);
+        toaster.success(
+          t('admin.reschedule.toast.done'),
+          t('admin.reschedule.toast.doneBody', {
+            rule: task.rule.title, equipment: task.equipment.code, date: longDate(value),
+          }),
+        );
       } else {
         // The server left it alone — the date was already this, or the task
         // was completed while the dialog was open. Saying "rescheduled" here
         // would be a lie the activity log would then contradict.
-        toaster.info('Nothing to change', 'That task is already due on this date, or it has just been completed.');
+        toaster.info(t('admin.reschedule.toast.noChange'), t('admin.reschedule.toast.noChangeBody'));
       }
       setDueDate(''); setReason('');
       onDone();
     } catch (err) {
-      toaster.error('Could not reschedule', err instanceof ApiError ? err.message : 'Please try again.');
+      toaster.error(t('admin.reschedule.toast.failed'), errorMessage(t, err));
     } finally {
       setBusy(false);
     }
@@ -69,41 +78,40 @@ export function RescheduleDialog({ task, today, onClose, onDone }: RescheduleDia
     <Sheet
       open={!!task}
       onClose={onClose}
-      title="Reschedule this task"
+      title={t('admin.reschedule.title')}
       subtitle={task ? `${task.rule.title} · ${task.equipment.code}` : undefined}
       size="sm"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" loading={busy} disabled={!value || value === current} onClick={submit}>
-            Move this occurrence
+            {t('admin.reschedule.confirm')}
           </Button>
         </>
       }
     >
       <p className="reschedule__current">
-        Currently due <strong>{current ? longDate(current) : '—'}</strong>
-        {task ? <> · <span className={STATUS[task.due.bucket].className}>{task.due.label}</span></> : null}
+        {t('admin.reschedule.currentlyDue', { date: current ? longDate(current) : '—' })}
+        {task ? <> · <span className={STATUS[task.due.bucket].className}>{dueLabel(t, task.due)}</span></> : null}
       </p>
 
       <div className="reschedule__shortcuts">
         {shortcuts.map((s) => (
-          <button key={s.label} type="button" className={`chip${value === s.value ? ' is-selected' : ''}`} onClick={() => setDueDate(s.value)}>
-            {s.label}
+          <button key={s.labelKey} type="button" className={`chip${value === s.value ? ' is-selected' : ''}`} onClick={() => setDueDate(s.value)}>
+            {t(s.labelKey)}
           </button>
         ))}
       </div>
 
-      <TextField label="New due date" type="date" value={value} min="2000-01-01" max="2099-12-31" onChange={(e) => setDueDate(e.target.value)} />
+      <TextField label={t('admin.reschedule.newDate')} type="date" value={value} min="2000-01-01" max="2099-12-31" onChange={(e) => setDueDate(e.target.value)} />
       <TextArea
-        label="Reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
-        placeholder="Parts on order, contractor unavailable, site closed…"
-        hint="Optional — but it is what makes the activity log worth reading later."
+        label={t('admin.reschedule.reason')} rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
+        placeholder={t('admin.reschedule.reason.placeholder')}
+        hint={t('admin.reschedule.reason.hint')}
       />
 
       <p className="sheet__note">
-        This moves only this occurrence, on this one item. Once the work is completed, the following occurrence is
-        still calculated from the day it was actually done.
+        {t('admin.reschedule.note')}
       </p>
     </Sheet>
   );

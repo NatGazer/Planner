@@ -3,13 +3,13 @@ import { Sheet } from '@ui/components/Sheet';
 import { Button } from '@ui/components/Button';
 import { Icon } from '@ui/components/Icon';
 import { useToaster } from '@ui/components/Toaster';
-import { ApiError } from '@ui/lib/api';
-import { plural } from '@ui/lib/format';
+import { errorMessage } from '@ui/lib/errors';
+import { useT, type StringKey } from '@ui/lib/i18n';
 
 export interface ArchiveDialogProps {
   open: boolean;
   onClose: () => void;
-  /** What is being archived, in the words the administrator uses. */
+  /** What is being archived. It picks a whole sentence, not a word slotted into one. */
   kind: 'equipment' | 'maintenance task' | 'equipment type';
   label: string;
   completionCount: number;
@@ -19,6 +19,16 @@ export interface ArchiveDialogProps {
 }
 
 /**
+ * One subtitle per kind. The noun cannot be a parameter: "this equipment" and
+ * "this maintenance task" do not share a determiner in French or Portuguese.
+ */
+const SUBTITLE: Record<ArchiveDialogProps['kind'], StringKey> = {
+  equipment: 'admin.archive.subtitle.equipment',
+  'maintenance task': 'admin.archive.subtitle.rule',
+  'equipment type': 'admin.archive.subtitle.type',
+};
+
+/**
  * Archiving, said plainly.
  *
  * Nothing in this system is ever deleted, because completed history points at
@@ -26,6 +36,7 @@ export interface ArchiveDialogProps {
  * an administrator is never guessing what "archive" will cost them.
  */
 export function ArchiveDialog({ open, onClose, kind, label, completionCount, pendingCount, archive, onDone }: ArchiveDialogProps) {
+  const t = useT();
   const toaster = useToaster();
   const [busy, setBusy] = useState(false);
 
@@ -33,11 +44,11 @@ export function ArchiveDialog({ open, onClose, kind, label, completionCount, pen
     setBusy(true);
     try {
       await archive();
-      toaster.success(`${label} archived`, 'Its completed history is untouched and still readable.');
+      toaster.success(t('admin.archive.done', { name: label }), t('admin.archive.doneBody'));
       onDone();
       onClose();
     } catch (err) {
-      toaster.error('Could not archive', err instanceof ApiError ? err.message : 'Please try again.');
+      toaster.error(t('admin.archive.failed'), errorMessage(t, err));
     } finally {
       setBusy(false);
     }
@@ -47,13 +58,13 @@ export function ArchiveDialog({ open, onClose, kind, label, completionCount, pen
     <Sheet
       open={open}
       onClose={onClose}
-      title={`Archive ${label}?`}
-      subtitle={`This ${kind} will no longer appear anywhere you configure work.`}
+      title={t('admin.archive.title', { name: label })}
+      subtitle={t(SUBTITLE[kind])}
       size="sm"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Keep it</Button>
-          <Button variant="danger" icon="archive" loading={busy} onClick={run}>Archive</Button>
+          <Button variant="ghost" onClick={onClose}>{t('admin.archive.keep')}</Button>
+          <Button variant="danger" icon="archive" loading={busy} onClick={run}>{t('admin.archive.confirm')}</Button>
         </>
       }
     >
@@ -61,20 +72,20 @@ export function ArchiveDialog({ open, onClose, kind, label, completionCount, pen
         <li>
           <Icon name="checkCircle" size={15} />
           <span>
-            <strong>{plural(completionCount, 'completed record')}</strong> stay exactly as they are.
-            Each one carries its own copy of the details, so archiving cannot change what they say.
+            <strong>{t('admin.archive.records', { count: completionCount })}</strong>{' '}
+            {t('admin.archive.recordsWhy', { count: completionCount })}
           </span>
         </li>
         <li>
           <Icon name="calendar" size={15} />
           <span>
-            <strong>{plural(pendingCount, 'pending task')}</strong> will be hidden. They are not deleted.
+            <strong>{t('admin.archive.pending', { count: pendingCount })}</strong>{' '}
+            {t('admin.archive.pendingKept', { count: pendingCount })}
           </span>
         </li>
         <li>
           <Icon name="info" size={15} />
-          <span>Nothing is removed from the database. Archiving is how this system retires
-            something that history still points at.</span>
+          <span>{t('admin.archive.nothingDeleted')}</span>
         </li>
       </ul>
     </Sheet>

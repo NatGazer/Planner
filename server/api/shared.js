@@ -28,7 +28,7 @@ function register(router, ctx) {
     // rejected here rather than being handed a session it cannot use.
     if (appRole === 'admin' && result.employee.role !== 'admin') {
       sessions.signOut(db, result.token);
-      throw forbidden('This is the administrator app. Please use the worker app to sign in.');
+      throw forbidden('This is the administrator app. Please use the worker app to sign in.', { key: 'server.wrongApp' });
     }
     send(res, 200, {
       employee: result.employee,
@@ -64,13 +64,13 @@ function register(router, ctx) {
       const buf = await readBody(req, config.maxPhotoBytes + 64 * 1024);
       const parts = parseMultipart(buf, type);
       const file = parts.find((p) => p.filename != null && p.data.length);
-      if (!file) throw badRequest('PHOTO_REQUIRED', 'No photo was attached.');
+      if (!file) throw badRequest('PHOTO_REQUIRED', 'No photo was attached.', { key: 'server.noPhotoAttached' });
       bytes = file.data; mime = (file.contentType || 'application/octet-stream').split(';')[0];
     } else if (type.startsWith('image/')) {
       bytes = await readBody(req, config.maxPhotoBytes + 64 * 1024);
       mime = type.split(';')[0];
     } else {
-      throw badRequest('BAD_UPLOAD', 'Send the photo as multipart/form-data or with an image content type.');
+      throw badRequest('BAD_UPLOAD', 'Send the photo as multipart/form-data or with an image content type.', { key: 'server.badUpload' });
     }
     const photo = photoStore.put(db, { bytes, mimeType: mime, uploaderId: actor.id });
     send(res, 201, { photoId: photo.id, byteSize: photo.byte_size, mimeType: photo.mime_type });
@@ -84,10 +84,10 @@ function register(router, ctx) {
     const actor = ctx.actorOf(req);
     if (!actor) throw unauthorized();
     const photo = db.get('SELECT * FROM photos WHERE id = ?', [params.id]);
-    if (!photo) throw notFound('That photo is not available.');
-    if (actor.role !== 'admin' && photo.uploaded_by !== actor.id) throw forbidden('That photo belongs to another completion.');
+    if (!photo) throw notFound('That photo is not available.', { key: 'server.photoUnavailable' });
+    if (actor.role !== 'admin' && photo.uploaded_by !== actor.id) throw forbidden('That photo belongs to another completion.', { key: 'server.photoOtherCompletion' });
     const bytes = photoStore.open(photo);
-    if (!bytes) throw notFound('That photo is not available.');
+    if (!bytes) throw notFound('That photo is not available.', { key: 'server.photoUnavailable' });
     res.writeHead(200, {
       'content-type': photo.mime_type,
       'content-length': bytes.length,

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { RouterProvider, useMatch, useRouter } from '@ui/lib/router';
 import { SessionProvider, useSession } from '@ui/lib/session';
 import { ThemeProvider, useTheme } from '@ui/lib/theme';
+import { LanguageProvider } from '@ui/lib/i18n';
 import { ToasterProvider } from '@ui/components/Toaster';
 import { BootScreen } from '@ui/components/states';
 import { AuroraField } from '@ui/components/AuroraField';
@@ -114,15 +115,17 @@ function Backdrop() {
 
 export function App() {
   return (
-    <ThemeProvider storageKey="mm.admin.theme">
-      <Backdrop />
-      <ToasterProvider>
-        <SessionProvider>
-          <RouterProvider>
-            <Authenticated />
-          </RouterProvider>
-        </SessionProvider>
-      </ToasterProvider>
-    </ThemeProvider>
+    <LanguageProvider storageKey="mm.admin.lang">
+      <ThemeProvider storageKey="mm.admin.theme">
+        <Backdrop />
+        <ToasterProvider>
+          <SessionProvider>
+            <RouterProvider>
+              <Authenticated />
+            </RouterProvider>
+          </SessionProvider>
+        </ToasterProvider>
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }

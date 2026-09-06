@@ -74,7 +74,7 @@ function purgeExpired(db) {
  */
 function requireRole(actor, role) {
   if (!actor) throw unauthorized();
-  if (role && actor.role !== role) throw forbidden(`This action is for ${role}s only.`);
+  if (role && actor.role !== role) throw forbidden(`This action is for ${role}s only.`, { key: 'server.roleOnly', params: { roleKey: `role.${role}` } });
   return actor;
 }
 

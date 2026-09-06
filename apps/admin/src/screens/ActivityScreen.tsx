@@ -7,6 +7,8 @@ import { listContainer, riseIn, stillContainer } from '@ui/anim/motion';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { Segmented } from '@ui/components/Field';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
+import { errorMessage } from '@ui/lib/errors';
+import { useT } from '@ui/lib/i18n';
 import { instantLong, longDate, relative } from '@ui/lib/format';
 import type { AuditEntry } from '@ui/lib/types';
 import { adminApi } from '../data';
@@ -38,6 +40,7 @@ const ICONS: Record<string, IconName> = {
  * log can never disagree with the data.
  */
 export function ActivityScreen() {
+  const t = useT();
   const { signOut } = useSession();
   const reduced = usePrefersReducedMotion();
   const [scope, setScope] = useState<Scope>('all');
@@ -64,28 +67,28 @@ export function ActivityScreen() {
     <div className="page">
       <header className="page__head">
         <div>
-          <h1 className="page__title">Activity</h1>
-          <p className="page__lede">Every configuration change and every reschedule, with who did it and when.</p>
+          <h1 className="page__title">{t('admin.activity.title')}</h1>
+          <p className="page__lede">{t('admin.activity.lede')}</p>
         </div>
       </header>
 
       <div className="filterbar">
         <Segmented
-          ariaLabel="Filter activity" layoutId="actscope" value={scope} onChange={setScope}
+          ariaLabel={t('admin.activity.filter.aria')} layoutId="actscope" value={scope} onChange={setScope}
           options={[
-            { value: 'all', label: 'Everything', count: log.data?.activity.length },
-            { value: 'schedule', label: 'Reschedules' },
-            { value: 'config', label: 'Configuration' },
+            { value: 'all', label: t('admin.activity.scope.all'), count: log.data?.activity.length },
+            { value: 'schedule', label: t('admin.activity.scope.schedule') },
+            { value: 'config', label: t('admin.activity.scope.config') },
           ]}
         />
       </div>
 
       {log.error && !log.data ? (
-        <ErrorState message={log.error.message} onRetry={() => void log.reload()} />
+        <ErrorState message={errorMessage(t, log.error)} onRetry={() => void log.reload()} />
       ) : !log.data ? (
         <div className="stack-list">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} height={56} radius={14} />)}</div>
       ) : days.length === 0 ? (
-        <EmptyState icon="activity" title="Nothing recorded yet" body="Changes to equipment, types, maintenance tasks and schedules will be listed here." />
+        <EmptyState icon="activity" title={t('admin.activity.empty.title')} body={t('admin.activity.empty.body')} />
       ) : (
         <motion.div variants={reduced ? stillContainer : listContainer(days.length, 0.02)} initial="hidden" animate="shown" className="activity">
           {days.map(([day, list]) => (
@@ -117,12 +120,13 @@ export function ActivityScreen() {
 }
 
 function DetailNote({ detail }: { detail: Record<string, unknown> }) {
+  const t = useT();
   const note = typeof detail.note === 'string' ? detail.note : null;
   const reason = typeof detail.reason === 'string' ? detail.reason : null;
   if (!note && !reason) return null;
   return (
     <p className="timeline__note">
-      {reason ? <><Icon name="comment" size={11} /> “{reason}”</> : null}
+      {reason ? <><Icon name="comment" size={11} /> {t('admin.activity.detail.reason', { reason })}</> : null}
       {reason && note ? ' · ' : null}
       {note}
     </p>

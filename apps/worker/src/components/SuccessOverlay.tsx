@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { Icon } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
+import { useT } from '@ui/lib/i18n';
 import { longDate, daysBetween } from '@ui/lib/format';
 import { usePrefersReducedMotion, useScrollLock } from '@ui/anim/hooks';
 import { spring } from '@ui/anim/motion';
@@ -22,6 +23,7 @@ export interface SuccessOverlayProps {
  * nobody has to tap through it on a busy shift.
  */
 export function SuccessOverlay({ open, title, nextDue, today, onDone }: SuccessOverlayProps) {
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   useScrollLock(open);
 
@@ -98,7 +100,7 @@ export function SuccessOverlay({ open, title, nextDue, today, onDone }: SuccessO
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.34, ...spring.glide }}
             >
-              Logged. Nice one.
+              {t('worker.success.title')}
             </motion.h2>
             <motion.p
               className="w-success__what"
@@ -117,8 +119,8 @@ export function SuccessOverlay({ open, title, nextDue, today, onDone }: SuccessO
             >
               <Icon name="calendar" size={14} />
               <span>
-                Next time: <strong>{nextDue ? longDate(nextDue) : '—'}</strong>
-                {inDays > 0 ? <span className="w-success__in"> · in {inDays} days</span> : null}
+                {t('worker.success.next', { date: nextDue ? longDate(nextDue) : '—' })}
+                {inDays > 0 ? <span className="w-success__in"> · {t('worker.success.inDays', { count: inDays })}</span> : null}
               </span>
             </motion.div>
 
@@ -129,7 +131,7 @@ export function SuccessOverlay({ open, title, nextDue, today, onDone }: SuccessO
               style={{ width: '100%' }}
             >
               <Button variant="secondary" size="lg" block onClick={onDone} iconAfter="arrowRight">
-                Back to the list
+                {t('worker.success.backToList')}
               </Button>
             </motion.div>
           </motion.div>

@@ -1,6 +1,7 @@
 import { useId, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { usePrefersReducedMotion } from '../anim/hooks';
+import { useT } from '../lib/i18n';
 
 /**
  * Charts drawn as plain SVG and animated with stroke and transform only.
@@ -92,6 +93,7 @@ export function Sparkline({
 // --------------------------------------------------------------- bar column
 
 export interface BarsProps {
+  /** `label` and `title` are read by a person — pass them already translated. */
   values: { label: string; value: number; emphasis?: boolean; title?: string; carried?: number }[];
   height?: number;
   gap?: number;
@@ -110,6 +112,7 @@ export interface BarsProps {
  * chart to show the overdue backlog weighing down day one.
  */
 export function Bars({ values, height = 96, gap = 4, radius = 5, className, delay = 0.1, onSelect }: BarsProps) {
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   const max = Math.max(...values.map((v) => v.value), 1);
 
@@ -124,7 +127,7 @@ export function Bars({ values, height = 96, gap = 4, radius = 5, className, dela
             key={v.label + i}
             type={onSelect ? 'button' : undefined}
             onClick={onSelect ? () => onSelect(i) : undefined}
-            title={v.title ?? `${v.label}: ${v.value}`}
+            title={v.title ?? t('ui.chart.valueTooltip', { label: v.label, value: v.value })}
             className={`bar${v.emphasis ? ' bar--emphasis' : ''}${v.value === 0 ? ' bar--empty' : ''}`}
             style={{ flex: 1, minWidth: 3, height: '100%', borderRadius: radius, transformOrigin: 'bottom', position: 'relative' }}
             initial={reduced ? { scaleY: fraction } : { scaleY: 0.012, opacity: 0 }}
@@ -189,6 +192,7 @@ export function Ring({ value, size = 92, thickness = 8, delay = 0.2, className, 
 // --------------------------------------------------------------- stack bar
 
 export interface StackProps {
+  /** `label` is read by a person, in the segment's tooltip — pass it already translated. */
   segments: { key: string; value: number; color: string; label: string }[];
   height?: number;
   className?: string;
@@ -201,6 +205,7 @@ export interface StackProps {
  * costs one composited transform rather than a relayout per frame.
  */
 export function Stack({ segments, height = 10, className, delay = 0.25 }: StackProps) {
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   const live = segments.filter((s) => s.value > 0);
   const total = live.reduce((s, x) => s + x.value, 0) || 1;
@@ -215,7 +220,7 @@ export function Stack({ segments, height = 10, className, delay = 0.25 }: StackP
       {live.map((s) => (
         <span
           key={s.key}
-          title={`${s.label}: ${s.value}`}
+          title={t('ui.chart.valueTooltip', { label: s.label, value: s.value })}
           style={{ background: s.color, borderRadius: height, display: 'block', flexGrow: s.value / total, flexBasis: 0 }}
         />
       ))}

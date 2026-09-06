@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { useCountUp, useTilt, usePrefersReducedMotion } from '@ui/anim/hooks';
 import { deckIn, riseIn, setZoomOrigin, spring } from '@ui/anim/motion';
-import { accentClass, STATUS } from '@ui/lib/status';
+import { accentClass, dueLabel, STATUS } from '@ui/lib/status';
 import { cadence, shortDate } from '@ui/lib/format';
+import { useT } from '@ui/lib/i18n';
 import type { Completion, DueBucket, Task } from '@ui/lib/types';
 
 /* ------------------------------------------------------------------ panel */
@@ -30,8 +31,9 @@ export interface PanelProps {
  * from the way it arrives, not from following the pointer.
  */
 export const Panel = forwardRef<HTMLDivElement, PanelProps>(function Panel(
-  { title, subtitle, icon, action, onOpen, openLabel = 'Open', span = 6, tone = 'plain', className, children }, ref,
+  { title, subtitle, icon, action, onOpen, openLabel, span = 6, tone = 'plain', className, children }, ref,
 ) {
+  const t = useT();
   return (
     <motion.section
       ref={ref}
@@ -48,14 +50,23 @@ export const Panel = forwardRef<HTMLDivElement, PanelProps>(function Panel(
           </div>
         </div>
         {action ?? (onOpen ? (
-          <button type="button" className="panel__open" onClick={onOpen} onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}>
-            {openLabel} <Icon name="arrowRight" size={14} />
+          <button
+            type="button"
+            className="panel__open"
+            onClick={onOpen}
+            onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
+            /* On a phone the label is hidden and only the arrow remains, so the
+               control has to carry its name here or it becomes unlabelled. */
+            aria-label={openLabel ?? t('admin.common.panel.open')}
+          >
+            <span className="panel__open-label">{openLabel ?? t('admin.common.panel.open')}</span>
+            <Icon name="arrowRight" size={14} />
           </button>
         ) : null)}
       </header>
       <div className="panel__body">{children}</div>
       {/* The whole panel is clickable, but it is not a second tab stop: the
-          visible "Open" control in the header is the one keyboard and screen
+          visible open control in the header is the one keyboard and screen
           reader users get, and this is a pointer convenience over the top. */}
       {onOpen ? (
         <button
@@ -156,6 +167,7 @@ export interface TaskRowProps {
 }
 
 export function TaskRow({ task, today, onOpen, onReschedule, showEquipment = true, showRule = true, dense }: TaskRowProps) {
+  const t = useT();
   const s = STATUS[task.due.bucket];
   const hidden = !task.equipment.active || !task.rule.active;
   return (
@@ -186,11 +198,11 @@ export function TaskRow({ task, today, onOpen, onReschedule, showEquipment = tru
             <Icon name="refresh" size={11} /> {cadence(task.rule.intervalValue, task.rule.intervalUnit)}
           </span>
         )}
-        {hidden ? <span className="task-row__flag">Hidden — deactivated</span> : null}
+        {hidden ? <span className="task-row__flag">{t('admin.common.taskRow.hidden')}</span> : null}
         <span className="task-row__date">{shortDate(task.dueDate, today)}</span>
-        <DueBadge bucket={task.due.bucket} label={task.due.label} compact />
+        <DueBadge bucket={task.due.bucket} label={dueLabel(t, task.due)} compact />
         {onReschedule ? (
-          <button type="button" className="task-row__action" onClick={onReschedule} title="Reschedule this task">
+          <button type="button" className="task-row__action" onClick={onReschedule} title={t('admin.common.taskRow.reschedule')}>
             <Icon name="calendar" size={14} />
           </button>
         ) : null}
@@ -202,6 +214,7 @@ export function TaskRow({ task, today, onOpen, onReschedule, showEquipment = tru
 /* -------------------------------------------------------- completion row */
 
 export function CompletionRow({ completion, onOpen }: { completion: Completion; onOpen?: () => void }) {
+  const t = useT();
   return (
     <motion.button
       type="button"
@@ -222,15 +235,15 @@ export function CompletionRow({ completion, onOpen }: { completion: Completion; 
       <span className="completion-row__note">
         {completion.comment
           ? <><Icon name="comment" size={12} /> {completion.comment}</>
-          : <span className="completion-row__note--none">No note left</span>}
+          : <span className="completion-row__note--none">{t('admin.common.completion.noNote')}</span>}
       </span>
       <span className="completion-row__meta">
         <span className="completion-row__who">{completion.employee.name}</span>
         <span className="completion-row__when">{shortDate(completion.completedOn)}</span>
         <span className={`completion-row__punct${completion.onTime ? ' is-ontime' : ' is-late'}`}>
           {completion.onTime
-            ? (completion.daysLate === 0 ? 'On the day' : `${-completion.daysLate}d early`)
-            : `${completion.daysLate}d late`}
+            ? (completion.daysLate === 0 ? t('due.onTheDay') : t('due.earlyShort', { count: -completion.daysLate }))
+            : t('due.overdueShort', { count: completion.daysLate })}
         </span>
       </span>
     </motion.button>

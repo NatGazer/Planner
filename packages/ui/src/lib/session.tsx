@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { auth, ApiError } from './api';
+import { auth } from './api';
+import { errorMessage } from './errors';
 import { setBusinessTimezone } from './format';
+import { useT } from './i18n';
 import type { Employee } from './types';
 
 interface SessionValue {
@@ -17,6 +19,7 @@ interface SessionValue {
 const SessionContext = createContext<SessionValue | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const t = useT();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [today, setToday] = useState('');
   const [timezone, setTimezone] = useState('');
@@ -55,13 +58,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setBusinessTimezone(r.timezone);
       setStatus('signed-in');
     } catch (err) {
-      const message = err instanceof ApiError
-        ? err.message
-        : 'Could not reach the server. Check your connection and try again.';
-      setError(message);
+      setError(errorMessage(t, err));
       throw err;
     }
-  }, []);
+  }, [t]);
 
   const signOut = useCallback(async () => {
     await auth.signOut().catch(() => { /* the local session goes either way */ });

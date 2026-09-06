@@ -14,10 +14,16 @@ class AppError extends Error {
   }
 }
 
+/**
+ * `detail.key` is a translation key and `detail.params` its values, so an app
+ * can show this message in the reader's language. The English `message` stays
+ * on the error itself: it is what the server logs, and what a client that does
+ * not recognise the key falls back to. The server has exactly one language.
+ */
 const badRequest = (code, msg, detail) => new AppError(code, msg, 400, detail);
-const unauthorized = (msg = 'Sign in to continue') => new AppError('UNAUTHORIZED', msg, 401);
-const forbidden = (msg = 'You do not have access to this action') => new AppError('FORBIDDEN', msg, 403);
-const notFound = (msg = 'Not found') => new AppError('NOT_FOUND', msg, 404);
+const unauthorized = (msg = 'Sign in to continue', detail = { key: 'server.signInToContinue' }) => new AppError('UNAUTHORIZED', msg, 401, detail);
+const forbidden = (msg = 'You do not have access to this action', detail = { key: 'server.noAccess' }) => new AppError('FORBIDDEN', msg, 403, detail);
+const notFound = (msg = 'Not found', detail = { key: 'server.notFound' }) => new AppError('NOT_FOUND', msg, 404, detail);
 const conflict = (code, msg, detail) => new AppError(code, msg, 409, detail);
 
 module.exports = { AppError, badRequest, unauthorized, forbidden, notFound, conflict };

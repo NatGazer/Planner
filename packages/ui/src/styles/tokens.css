@@ -69,7 +69,9 @@
 
   --text-hi: #EDF1FA;
   --text-mid: #A7B3C9;
-  --text-low: #8B97AD;   /* lifted so it still clears AA on accent-tinted cards */
+  --text-low: #9BA6B8;   /* set from the warmest, lightest accent card this
+                            lands on — a gold type card at rgb(59, 58, 51) —
+                            not from the deck behind it, where it reads 7:1 */
   --text-inverse: #070A11;
 
   /* Shadows carry a cool cast at night; the triplet is piped into rgba(). */

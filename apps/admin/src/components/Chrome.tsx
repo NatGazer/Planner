@@ -3,22 +3,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from '@ui/lib/router';
 import { useSession } from '@ui/lib/session';
 import { useTheme } from '@ui/lib/theme';
+import { useT, type StringKey } from '@ui/lib/i18n';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
+import { LanguagePicker } from '@ui/components/LanguagePicker';
 import { initials, longDate } from '@ui/lib/format';
 import { spring } from '@ui/anim/motion';
 import { useMediaQuery, usePrefersReducedMotion } from '@ui/anim/hooks';
 
-interface NavItem { path: string; label: string; icon: IconName; hint: string }
+// The list is module-level, so it holds *keys*; the words are resolved with
+// `t` inside the component, where the language is known.
+interface NavItem { path: string; labelKey: StringKey; icon: IconName; hintKey: StringKey }
 
 const NAV: NavItem[] = [
-  { path: '/', label: 'Overview', icon: 'dashboard', hint: 'Everything at a glance' },
-  { path: '/tasks', label: 'Outstanding', icon: 'tasks', hint: 'Work still to be done' },
-  { path: '/equipment', label: 'Equipment', icon: 'equipment', hint: 'Every item on site' },
-  { path: '/rules', label: 'Maintenance', icon: 'rules', hint: 'What gets done, how often' },
-  { path: '/types', label: 'Types', icon: 'types', hint: 'Categories of equipment' },
-  { path: '/history', label: 'History', icon: 'history', hint: 'Completed work' },
-  { path: '/activity', label: 'Activity', icon: 'activity', hint: 'Configuration changes' },
+  { path: '/', labelKey: 'admin.nav.overview', icon: 'dashboard', hintKey: 'admin.nav.overview.hint' },
+  { path: '/tasks', labelKey: 'admin.nav.outstanding', icon: 'tasks', hintKey: 'admin.nav.outstanding.hint' },
+  { path: '/equipment', labelKey: 'admin.nav.equipment', icon: 'equipment', hintKey: 'admin.nav.equipment.hint' },
+  { path: '/rules', labelKey: 'admin.nav.rules', icon: 'rules', hintKey: 'admin.nav.rules.hint' },
+  { path: '/types', labelKey: 'admin.nav.types', icon: 'types', hintKey: 'admin.nav.types.hint' },
+  { path: '/history', labelKey: 'admin.nav.history', icon: 'history', hintKey: 'admin.nav.history.hint' },
+  { path: '/activity', labelKey: 'admin.nav.activity', icon: 'activity', hintKey: 'admin.nav.activity.hint' },
 ];
 
 const isActive = (path: string, current: string) =>
@@ -30,6 +34,7 @@ const isActive = (path: string, current: string) =>
  * navigation reads as one object moving rather than two things blinking.
  */
 export function Chrome({ children }: { children: ReactNode }) {
+  const t = useT();
   const { path, navigate } = useRouter();
   const { employee, today, timezone, signOut } = useSession();
   const { resolved, toggle } = useTheme();
@@ -38,9 +43,10 @@ export function Chrome({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const nav = (
-    <nav className={compact ? 'navbar' : 'rail__nav'} aria-label="Sections">
+    <nav className={compact ? 'navbar' : 'rail__nav'} aria-label={t('admin.nav.sections')}>
       {NAV.map((item) => {
         const active = isActive(item.path, path);
+        const label = t(item.labelKey);
         return (
           <button
             key={item.path}
@@ -48,7 +54,7 @@ export function Chrome({ children }: { children: ReactNode }) {
             className={`nav-item${active ? ' is-active' : ''}`}
             onClick={() => navigate(item.path)}
             aria-current={active ? 'page' : undefined}
-            title={compact ? item.label : item.hint}
+            title={compact ? label : t(item.hintKey)}
           >
             {active ? (
               <motion.span
@@ -58,7 +64,7 @@ export function Chrome({ children }: { children: ReactNode }) {
               />
             ) : null}
             <span className="nav-item__icon"><Icon name={item.icon} size={compact ? 21 : 19} /></span>
-            <span className="nav-item__label">{item.label}</span>
+            <span className="nav-item__label">{label}</span>
           </button>
         );
       })}
@@ -82,7 +88,7 @@ export function Chrome({ children }: { children: ReactNode }) {
           </button>
           {nav}
           <div className="rail__foot">
-            <button type="button" className="theme-toggle" onClick={toggle} aria-label={`Switch to ${resolved === 'dark' ? 'light' : 'dark'} appearance`}>
+            <button type="button" className="theme-toggle" onClick={toggle} aria-label={t(resolved === 'dark' ? 'admin.nav.theme.toLight' : 'admin.nav.theme.toDark')}>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={resolved}
@@ -104,14 +110,14 @@ export function Chrome({ children }: { children: ReactNode }) {
         <header className="topbar">
           <div className="topbar__date">
             <span className="topbar__today">{today ? longDate(today) : ''}</span>
-            <span className="topbar__zone" title="All due dates are calculated in this timezone">
+            <span className="topbar__zone" title={t('admin.nav.timezone.hint')}>
               <Icon name="clock" size={12} /> {timezone}
             </span>
           </div>
 
           <div className="topbar__right">
             {compact ? (
-              <button type="button" className="theme-toggle" onClick={toggle} aria-label="Switch appearance">
+              <button type="button" className="theme-toggle" onClick={toggle} aria-label={t('admin.nav.theme.toggle')}>
                 <Icon name={resolved === 'dark' ? 'moon' : 'sun'} size={17} />
               </button>
             ) : null}
@@ -120,14 +126,14 @@ export function Chrome({ children }: { children: ReactNode }) {
                 <span className="account__avatar">{initials(employee?.name ?? '')}</span>
                 <span className="account__meta">
                   <span className="account__name">{employee?.name}</span>
-                  <span className="account__role">Administrator</span>
+                  <span className="account__role">{t('admin.nav.role')}</span>
                 </span>
                 <Icon name="chevronDown" size={14} className="account__chevron" />
               </button>
               <AnimatePresence>
                 {menuOpen ? (
                   <>
-                    <button type="button" className="account__scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+                    <button type="button" className="account__scrim" aria-label={t('admin.nav.closeMenu')} onClick={() => setMenuOpen(false)} />
                     <motion.div
                       className="account__menu"
                       initial={reduced ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.96, filter: 'blur(6px)' }}
@@ -136,8 +142,16 @@ export function Chrome({ children }: { children: ReactNode }) {
                       transition={spring.snap}
                     >
                       <p className="account__email">{employee?.email}</p>
+
+                      <div className="account__row">
+                        <span className="account__rowLabel">
+                          <Icon name="globe" size={13} /> {t('common.language')}
+                        </span>
+                        <LanguagePicker />
+                      </div>
+
                       <Button variant="ghost" icon="signOut" block onClick={() => { setMenuOpen(false); void signOut(); }}>
-                        Sign out
+                        {t('common.signOut')}
                       </Button>
                     </motion.div>
                   </>

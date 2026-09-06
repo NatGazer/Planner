@@ -3,17 +3,19 @@ import { AnimatePresence, motion, useTransform } from 'framer-motion';
 import { useRouter } from '@ui/lib/router';
 import { useResource, useRefreshOnFocus } from '@ui/lib/useResource';
 import { useSession, useSignOutOn401 } from '@ui/lib/session';
-import { useTheme } from '@ui/lib/theme';
 import { useDebounced, usePrefersReducedMotion } from '@ui/anim/hooks';
 import { usePullToRefresh } from '@ui/anim/usePullToRefresh';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
-import { groupByUrgency, accentClass, STATUS } from '@ui/lib/status';
-import { initials, plural, shortDate } from '@ui/lib/format';
+import { groupByUrgency, accentClass, STATUS, dueLabel } from '@ui/lib/status';
+import { errorMessage } from '@ui/lib/errors';
+import { useT, type StringKey } from '@ui/lib/i18n';
+import { initials, shortDate } from '@ui/lib/format';
 import { spring } from '@ui/anim/motion';
 import type { Task } from '@ui/lib/types';
 import { workerApi } from '../data';
+import { AccountSheet } from '../components/AccountSheet';
 
 /**
  * The shared list. Everybody sees exactly the same thing, in the same order,
@@ -23,14 +25,15 @@ import { workerApi } from '../data';
  * sections are labelled so a glance is enough.
  */
 export function TaskList() {
+  const t = useT();
   const { navigate } = useRouter();
   const { employee, today, signOut } = useSession();
-  const { resolved, toggle } = useTheme();
   const reduced = usePrefersReducedMotion();
 
   const [search, setSearch] = useState('');
   const [searching, setSearching] = useState(false);
   const [showLater, setShowLater] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const debounced = useDebounced(search, 250);
 
   const list = useResource(() => workerApi.tasks(debounced || undefined), [debounced]);
@@ -52,15 +55,15 @@ export function TaskList() {
       <header className="w-head">
         <div className="w-head__row">
           <div>
-            <p className="w-head__eyebrow">{greeting()}, {employee?.name?.split(' ')[0]}</p>
+            <p className="w-head__eyebrow">{t(greetingKey(), { name: employee?.name?.split(' ')[0] ?? '' })}</p>
             <h1 className="w-head__title">
-              {counts == null ? 'Loading…'
-                : actionable === 0 ? 'Nothing due yet'
-                  : `${actionable} to do`}
+              {counts == null ? t('common.loading')
+                : actionable === 0 ? t('worker.list.title.clear')
+                  : t('worker.list.title.toDo', { count: actionable })}
             </h1>
           </div>
           <div className="w-head__actions">
-            <button type="button" className="w-icon-btn" onClick={() => setSearching((v) => !v)} aria-label="Search">
+            <button type="button" className="w-icon-btn" onClick={() => setSearching((v) => !v)} aria-label={t('common.search')}>
               <Icon name={searching ? 'close' : 'search'} size={19} />
             </button>
             <button
@@ -68,14 +71,17 @@ export function TaskList() {
               className="w-icon-btn"
               onClick={() => void list.reload()}
               disabled={list.refreshing}
-              aria-label="Refresh the list"
+              aria-label={t('worker.list.refresh')}
             >
               <Icon name="refresh" size={18} className={list.refreshing ? 'is-spinning' : undefined} />
             </button>
-            <button type="button" className="w-icon-btn" onClick={toggle} aria-label="Switch appearance">
-              <Icon name={resolved === 'dark' ? 'moon' : 'sun'} size={18} />
-            </button>
-            <button type="button" className="w-avatar" onClick={() => void signOut()} aria-label="Sign out" title="Sign out">
+            <button
+              type="button"
+              className="w-avatar"
+              onClick={() => setAccountOpen(true)}
+              aria-label={t('worker.account.open')}
+              title={t('worker.account.open')}
+            >
               {initials(employee?.name ?? '')}
             </button>
           </div>
@@ -83,9 +89,9 @@ export function TaskList() {
 
         {counts ? (
           <div className="w-pills">
-            <Pill tone="overdue" label="Overdue" value={counts.overdue} />
-            <Pill tone="today" label="Today" value={counts.today} />
-            <Pill tone="soon" label="This week" value={counts.soon} />
+            <Pill tone="overdue" label={t('status.overdue.short')} value={counts.overdue} />
+            <Pill tone="today" label={t('status.today.short')} value={counts.today} />
+            <Pill tone="soon" label={t('status.soon.short')} value={counts.soon} />
           </div>
         ) : null}
 
@@ -101,9 +107,9 @@ export function TaskList() {
               <Icon name="search" size={16} />
               <input
                 autoFocus type="search" value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder="Asset code, name or location" aria-label="Search tasks"
+                placeholder={t('worker.list.searchPlaceholder')} aria-label={t('worker.list.searchLabel')}
               />
-              {search ? <button type="button" onClick={() => setSearch('')} aria-label="Clear"><Icon name="close" size={14} /></button> : null}
+              {search ? <button type="button" onClick={() => setSearch('')} aria-label={t('common.clear')}><Icon name="close" size={14} /></button> : null}
             </motion.div>
           ) : null}
         </AnimatePresence>
@@ -121,33 +127,33 @@ export function TaskList() {
 
       <motion.div ref={scrollRef} className="w-scroll" style={{ y: pullShift }}>
         {list.error && !list.data ? (
-          <ErrorState message={list.error.message} onRetry={() => void list.reload()} />
+          <ErrorState message={errorMessage(t, list.error)} onRetry={() => void list.reload()} />
         ) : !list.data ? (
           <div className="w-cards">{[0, 1, 2, 3].map((i) => <Skeleton key={i} height={104} radius={20} />)}</div>
         ) : groups.length === 0 ? (
           <EmptyState
             icon={debounced ? 'search' : 'checkCircle'}
             tone={debounced ? 'calm' : 'good'}
-            title={debounced ? 'Nothing matches' : 'All clear'}
+            title={debounced ? t('worker.list.empty.noMatchTitle') : t('worker.list.empty.clearTitle')}
             body={debounced
-              ? 'Try a different asset code or location.'
-              : 'Every scheduled job has been done. New ones appear here as they fall due.'}
-            action={debounced ? <Button variant="secondary" onClick={() => { setSearch(''); setSearching(false); }}>Clear search</Button> : undefined}
+              ? t('worker.list.empty.noMatchBody')
+              : t('worker.list.empty.clearBody')}
+            action={debounced ? <Button variant="secondary" onClick={() => { setSearch(''); setSearching(false); }}>{t('worker.list.clearSearch')}</Button> : undefined}
           />
         ) : (
           groups.map((group) => {
-            // Nothing pressing? Then "Later" is the whole list, and collapsing
-            // it would leave the worker staring at an empty screen.
+            // Nothing pressing? Then the `later` section is the whole list, and
+            // collapsing it would leave the worker staring at an empty screen.
             const collapsed = group.bucket === 'later' && !showLater && groups.length > 1;
             return (
               <section key={group.bucket} className={`w-group ${group.style.className}`}>
                 <header className="w-group__head">
                   <span className="w-group__dot" aria-hidden="true" />
-                  <h2>{group.style.label}</h2>
+                  <h2>{t(group.style.labelKey)}</h2>
                   <span className="w-group__count">{group.tasks.length}</span>
                   {group.bucket === 'later' ? (
                     <button type="button" className="w-group__toggle" onClick={() => setShowLater((v) => !v)}>
-                      {collapsed ? 'Show' : 'Hide'}
+                      {collapsed ? t('worker.list.show') : t('worker.list.hide')}
                       <Icon name="chevronDown" size={14} className={collapsed ? '' : 'is-flipped'} />
                     </button>
                   ) : null}
@@ -180,27 +186,35 @@ export function TaskList() {
 
         {list.data?.truncated ? (
           <p className="w-truncated">
-            Showing the most urgent {list.data.tasks.length} of{' '}
-            {plural(list.data.counts.total, 'job')}. Search to find a specific one.
+            {t('worker.list.truncated', { shown: list.data.tasks.length, count: list.data.counts.total })}
           </p>
         ) : null}
 
         {list.data ? (
           <p className="w-foot">
-            {plural(list.data.counts.total, 'job')} outstanding · times shown in {list.data.timezone.replace('_', ' ')}
+            {t('worker.list.footer', { count: list.data.counts.total, zone: list.data.timezone.replace('_', ' ') })}
           </p>
         ) : null}
       </motion.div>
+
+      <AccountSheet
+        open={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        name={employee?.name ?? ''}
+        email={employee?.email ?? ''}
+        onSignOut={() => { setAccountOpen(false); void signOut(); }}
+      />
     </div>
   );
 }
 
-function greeting(): string {
+/** Which greeting fits the hour; the sentence itself lives in the dictionary. */
+function greetingKey(): StringKey {
   const h = new Date().getHours();
-  if (h < 5) return 'Evening';
-  if (h < 12) return 'Morning';
-  if (h < 18) return 'Afternoon';
-  return 'Evening';
+  if (h < 5) return 'worker.list.greeting.evening';
+  if (h < 12) return 'worker.list.greeting.morning';
+  if (h < 18) return 'worker.list.greeting.afternoon';
+  return 'worker.list.greeting.evening';
 }
 
 function Pill({ tone, label, value }: { tone: string; label: string; value: number }) {
@@ -218,6 +232,7 @@ function Pill({ tone, label, value }: { tone: string; label: string; value: numb
  * urgency reads as colour before you have read a word.
  */
 function TaskCard({ task, today, index, onOpen }: { task: Task; today: string; index: number; onOpen: () => void }) {
+  const t = useT();
   const reduced = usePrefersReducedMotion();
   const s = STATUS[task.due.bucket];
   // The pressure field: full width when the job is due or late, shrinking
@@ -244,7 +259,7 @@ function TaskCard({ task, today, index, onOpen }: { task: Task; today: string; i
           <span className="w-card__code">{task.equipment.code}</span>
           <span className={`w-card__due ${s.className}`}>
             <Icon name={s.icon} size={12} />
-            {task.due.label}
+            {dueLabel(t, task.due)}
           </span>
         </span>
         <span className="w-card__title">{task.rule.title}</span>

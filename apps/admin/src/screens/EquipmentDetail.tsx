@@ -12,8 +12,9 @@ import { Sheet } from '@ui/components/Sheet';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
 import { useToaster } from '@ui/components/Toaster';
 import { accentClass } from '@ui/lib/status';
-import { instantLong, longDate, plural, relative, shortDate } from '@ui/lib/format';
-import { ApiError } from '@ui/lib/api';
+import { errorMessage } from '@ui/lib/errors';
+import { useT } from '@ui/lib/i18n';
+import { instantLong, longDate, relative, shortDate } from '@ui/lib/format';
 import type { Task } from '@ui/lib/types';
 import { adminApi } from '../data';
 import { EquipmentForm } from '../components/EquipmentForm';
@@ -29,6 +30,7 @@ type Tab = 'schedule' | 'history' | 'activity';
  * Two items of the same type share nothing but the rules they inherit.
  */
 export function EquipmentDetail({ id }: { id: string }) {
+  const t = useT();
   const { navigate } = useRouter();
   const { signOut } = useSession();
   const toaster = useToaster();
@@ -51,19 +53,19 @@ export function EquipmentDetail({ id }: { id: string }) {
     try {
       await adminApi.updateEquipment(id, { active: next });
       toaster.success(
-        next ? 'Back in service' : 'Deactivated',
+        next ? t('admin.equipmentDetail.reactivated') : t('admin.equipmentDetail.deactivated'),
         next
-          ? 'Its pending tasks are visible again, at their existing due dates.'
-          : 'Pending tasks are hidden and keep their dates. Completed history is untouched.',
+          ? t('admin.equipmentDetail.reactivatedBody')
+          : t('admin.equipmentDetail.deactivatedBody'),
       );
       await detail.reload();
     } catch (err) {
-      toaster.error('Could not update', err instanceof ApiError ? err.message : 'Please try again.');
+      toaster.error(t('admin.equipmentDetail.updateFailed'), errorMessage(t, err));
     }
-  }, [detail, id, toaster]);
+  }, [detail, id, t, toaster]);
 
   if (detail.error && !detail.data) {
-    return <div className="page"><ErrorState message={detail.error.message} onRetry={() => void detail.reload()} /></div>;
+    return <div className="page"><ErrorState message={errorMessage(t, detail.error)} onRetry={() => void detail.reload()} /></div>;
   }
   if (!detail.data) {
     return (
@@ -76,13 +78,13 @@ export function EquipmentDetail({ id }: { id: string }) {
   }
 
   const { equipment, tasks, history, activity, today } = detail.data;
-  const visible = tasks.filter((t) => t.equipment.active && t.rule.active);
-  const hidden = tasks.filter((t) => !t.equipment.active || !t.rule.active);
+  const visible = tasks.filter((task) => task.equipment.active && task.rule.active);
+  const hidden = tasks.filter((task) => !task.equipment.active || !task.rule.active);
 
   return (
     <div className="page">
       <button type="button" className="backlink" onClick={() => navigate('/equipment')}>
-        <Icon name="chevronLeft" size={15} /> Equipment
+        <Icon name="chevronLeft" size={15} /> {t('admin.equipmentDetail.backToEquipment')}
       </button>
 
       <motion.header
@@ -97,51 +99,51 @@ export function EquipmentDetail({ id }: { id: string }) {
             <p className="hero__eyebrow">
               <span className="hero__code">{equipment.code}</span>
               <span className="hero__type">{equipment.type.name}</span>
-              {!equipment.active ? <span className="hero__flag">Deactivated</span> : null}
+              {!equipment.active ? <span className="hero__flag">{t('admin.equipmentDetail.flag.deactivated')}</span> : null}
             </p>
             <h1 className="hero__title">{equipment.name}</h1>
             <p className="hero__meta">
               {equipment.location
                 ? <><Icon name="pin" size={13} /> {equipment.location}</>
-                : <span className="hero__meta-quiet">No location recorded</span>}
+                : <span className="hero__meta-quiet">{t('admin.equipmentDetail.noLocation')}</span>}
               <span className="hero__dot" aria-hidden="true">·</span>
               {equipment.lastCompletedAt
-                ? <>Last serviced {relative(equipment.lastCompletedAt)}</>
-                : <span className="hero__meta-quiet">Never serviced</span>}
+                ? t('admin.equipmentDetail.lastServiced', { when: relative(equipment.lastCompletedAt) })
+                : <span className="hero__meta-quiet">{t('admin.equipmentDetail.neverServiced')}</span>}
             </p>
           </div>
         </div>
 
         <div className="hero__stats">
-          <HeroStat label="Scheduled" value={visible.length} />
-          <HeroStat label="Completed" value={equipment.completionCount} />
+          <HeroStat label={t('admin.equipmentDetail.stat.scheduled')} value={visible.length} />
+          <HeroStat label={t('admin.equipmentDetail.stat.completed')} value={equipment.completionCount} />
           <HeroStat
-            label="Next due"
+            label={t('admin.equipmentDetail.stat.nextDue')}
             text={equipment.nextDue ? shortDate(equipment.nextDue, today) : '—'}
             tone={equipment.nextDue && equipment.nextDue < today ? 'overdue' : undefined}
           />
         </div>
 
         <div className="hero__actions">
-          <Button variant="secondary" icon="edit" onClick={() => setEditing(true)}>Edit</Button>
-          <Button variant="secondary" icon="copy" onClick={() => setDuplicating(true)}>Duplicate</Button>
+          <Button variant="secondary" icon="edit" onClick={() => setEditing(true)}>{t('admin.equipmentDetail.action.edit')}</Button>
+          <Button variant="secondary" icon="copy" onClick={() => setDuplicating(true)}>{t('admin.equipmentDetail.action.duplicate')}</Button>
           <Button variant={equipment.active ? 'ghost' : 'primary'} icon="power" onClick={toggleActive}>
-            {equipment.active ? 'Deactivate' : 'Reactivate'}
+            {equipment.active ? t('admin.equipmentDetail.action.deactivate') : t('admin.equipmentDetail.action.reactivate')}
           </Button>
-          <Button variant="quiet" icon="archive" onClick={() => setArchiving(true)}>Archive</Button>
+          <Button variant="quiet" icon="archive" onClick={() => setArchiving(true)}>{t('admin.equipmentDetail.action.archive')}</Button>
         </div>
       </motion.header>
 
       <Segmented
-        ariaLabel="Equipment detail sections"
+        ariaLabel={t('admin.equipmentDetail.tabs.aria')}
         layoutId="eqtab"
         className="detail-tabs"
         value={tab}
         onChange={setTab}
         options={[
-          { value: 'schedule', label: 'Schedule', count: visible.length },
-          { value: 'history', label: 'History', count: history.total },
-          { value: 'activity', label: 'Activity', count: activity.length },
+          { value: 'schedule', label: t('admin.equipmentDetail.tab.schedule'), count: visible.length },
+          { value: 'history', label: t('admin.equipmentDetail.tab.history'), count: history.total },
+          { value: 'activity', label: t('admin.equipmentDetail.tab.activity'), count: activity.length },
         ]}
       />
 
@@ -167,31 +169,33 @@ export function EquipmentDetail({ id }: { id: string }) {
             ) : (
               <EmptyState
                 icon="calendar"
-                title={equipment.active ? 'No maintenance scheduled' : 'Schedule hidden while deactivated'}
+                title={equipment.active
+                  ? t('admin.equipmentDetail.empty.scheduleTitle')
+                  : t('admin.equipmentDetail.empty.hiddenTitle')}
                 body={equipment.active
-                  ? 'Add a maintenance task to this equipment type and a schedule opens here automatically.'
-                  : 'Its pending tasks still exist and keep their due dates. Reactivate the item to bring them back.'}
+                  ? t('admin.equipmentDetail.empty.scheduleBody')
+                  : t('admin.equipmentDetail.empty.hiddenBody')}
                 action={equipment.active
-                  ? <Button variant="secondary" icon="plus" onClick={() => navigate(`/rules?type=${equipment.type.id}&new=1`)}>Add a maintenance task</Button>
-                  : <Button variant="primary" icon="power" onClick={toggleActive}>Reactivate</Button>}
+                  ? <Button variant="secondary" icon="plus" onClick={() => navigate(`/rules?type=${equipment.type.id}&new=1`)}>{t('admin.equipmentDetail.empty.addTask')}</Button>
+                  : <Button variant="primary" icon="power" onClick={toggleActive}>{t('admin.equipmentDetail.action.reactivate')}</Button>}
               />
             )}
 
             {hidden.length ? (
               <motion.div variants={riseIn} className="note-strip">
                 <Icon name="info" size={15} />
-                <p><strong>{plural(hidden.length, 'pending task')}</strong> hidden because the maintenance task or the equipment is deactivated. Dates are preserved.</p>
+                <p>{t('admin.equipmentDetail.hiddenNote', { count: hidden.length })}</p>
               </motion.div>
             ) : null}
 
             <motion.section variants={riseIn} className="inherited">
-              <h3 className="inherited__title">Inherited from {equipment.type.name}</h3>
+              <h3 className="inherited__title">{t('admin.equipmentDetail.inheritedFrom', { type: equipment.type.name })}</h3>
               <div className="inherited__list">
                 {(detail.data.rules ?? []).map((rule) => (
                   <button key={rule.id} type="button" className={`inherited__row${rule.active ? '' : ' is-off'}`} onClick={() => navigate(`/rules/${rule.id}`)}>
                     <span className="inherited__name">{rule.title}</span>
                     <CadenceChip value={rule.intervalValue} unit={rule.intervalUnit} />
-                    {!rule.active ? <span className="inherited__flag">Deactivated</span> : null}
+                    {!rule.active ? <span className="inherited__flag">{t('admin.equipmentDetail.rule.deactivatedFlag')}</span> : null}
                     <Icon name="chevronRight" size={14} />
                   </button>
                 ))}
@@ -207,7 +211,7 @@ export function EquipmentDetail({ id }: { id: string }) {
                 {history.items.map((c) => <CompletionRow key={c.id} completion={c} onOpen={() => setViewing(c.id)} />)}
               </div>
             ) : (
-              <EmptyState icon="history" title="No completed work yet" body="Completions submitted from the worker app appear here, with the photo, the person and the exact time." />
+              <EmptyState icon="history" title={t('admin.equipmentDetail.empty.historyTitle')} body={t('admin.equipmentDetail.empty.historyBody')} />
             )}
           </motion.div>
         ) : null}
@@ -230,7 +234,7 @@ export function EquipmentDetail({ id }: { id: string }) {
                 ))}
               </ol>
             ) : (
-              <EmptyState icon="activity" title="No changes recorded" body="Configuration changes and reschedules for this item will be listed here." />
+              <EmptyState icon="activity" title={t('admin.equipmentDetail.empty.activityTitle')} body={t('admin.equipmentDetail.empty.activityBody')} />
             )}
           </motion.div>
         ) : null}
@@ -254,8 +258,8 @@ export function EquipmentDetail({ id }: { id: string }) {
         today={today}
         onDone={(codes) => {
           toaster.success(
-            codes.length === 1 ? `${codes[0]} created` : `${codes.length} new items created`,
-            'Each has a new identifier and a fresh schedule. No history was copied.',
+            t('admin.equipmentDetail.duplicated', { count: codes.length, code: codes[0] }),
+            t('admin.equipmentDetail.duplicatedBody'),
           );
           navigate('/equipment');
         }}
@@ -297,6 +301,7 @@ function HeroStat({ label, value, text, tone }: { label: string; value?: number;
 function DuplicateSheet({ open, onClose, id, sourceCode, today, onDone }: {
   open: boolean; onClose: () => void; id: string; sourceCode: string; today: string; onDone: (codes: string[]) => void;
 }) {
+  const t = useT();
   const toaster = useToaster();
   const [code, setCode] = useState('');
   const [count, setCount] = useState(1);
@@ -306,12 +311,12 @@ function DuplicateSheet({ open, onClose, id, sourceCode, today, onDone }: {
     <Sheet
       open={open}
       onClose={onClose}
-      title="Duplicate this equipment"
-      subtitle={`Based on ${sourceCode}`}
+      title={t('admin.equipmentDetail.duplicate.title')}
+      subtitle={t('admin.equipmentDetail.duplicate.subtitle', { code: sourceCode })}
       size="sm"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
           <Button
             variant="primary" loading={busy}
             onClick={async () => {
@@ -321,30 +326,31 @@ function DuplicateSheet({ open, onClose, id, sourceCode, today, onDone }: {
                 onDone(created.map((c) => c.code));
                 onClose();
               } catch (err) {
-                toaster.error('Could not duplicate', err instanceof ApiError ? err.message : 'Please try again.');
+                toaster.error(t('admin.equipmentDetail.duplicate.failed'), errorMessage(t, err));
               } finally { setBusy(false); }
             }}
           >
-            Create {count === 1 ? 'a copy' : `${count} copies`}
+            {t('admin.equipmentDetail.duplicate.submit', { count })}
           </Button>
         </>
       }
     >
       <p className="sheet__note">
-        A duplicate is a new physical item: it gets its own asset code and a schedule that starts fresh today.
-        Completion history is never copied — that belongs to the original.
+        {t('admin.equipmentDetail.duplicate.note')}
       </p>
       <TextField
-        label="Asset code" value={code} onChange={(e) => setCode(e.target.value)}
+        label={t('admin.equipmentDetail.duplicate.codeLabel')} value={code} onChange={(e) => setCode(e.target.value)}
         placeholder={`${sourceCode}-COPY`}
-        hint={count > 1 ? 'A two-digit suffix is added to each copy.' : 'Leave blank to append -COPY to the original code.'}
+        hint={count > 1
+          ? t('admin.equipmentDetail.duplicate.hintMany')
+          : t('admin.equipmentDetail.duplicate.hintOne')}
       />
       <TextField
-        label="How many" type="number" min={1} max={50} value={count}
+        label={t('admin.equipmentDetail.duplicate.countLabel')} type="number" min={1} max={50} value={count}
         onChange={(e) => setCount(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
       />
       <p className="sheet__note sheet__note--quiet">
-        First occurrence for each copy falls due one interval from {longDate(today)}.
+        {t('admin.equipmentDetail.duplicate.firstDue', { date: longDate(today) })}
       </p>
     </Sheet>
   );

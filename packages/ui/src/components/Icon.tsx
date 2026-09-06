@@ -11,7 +11,7 @@ export type IconName =
   | 'clock' | 'calendar' | 'alert' | 'check' | 'checkCircle' | 'chevronRight' | 'chevronLeft' | 'chevronDown'
   | 'plus' | 'search' | 'filter' | 'close' | 'camera' | 'image' | 'comment' | 'user' | 'signOut'
   | 'pin' | 'copy' | 'edit' | 'archive' | 'power' | 'refresh' | 'arrowRight' | 'arrowUpRight' | 'sparkle'
-  | 'sun' | 'moon' | 'info' | 'trend' | 'grid' | 'list' | 'shuffle' | 'lock';
+  | 'sun' | 'moon' | 'info' | 'trend' | 'grid' | 'list' | 'shuffle' | 'lock' | 'globe';
 
 const PATHS: Record<IconName, string> = {
   cube: 'M12 2.8 20.2 7v10L12 21.2 3.8 17V7Zm0 0v18.4M20.2 7 12 11.6 3.8 7',
@@ -37,6 +37,7 @@ const PATHS: Record<IconName, string> = {
   calendar: 'M4 6.5h16v14H4Zm0 4.5h16M8.5 3.5v4m7-4v4',
   alert: 'M12 3.4 21.2 20H2.8ZM12 9.6v4.6m0 2.8v.1',
   check: 'm4.5 12.5 5 5 10-11',
+  globe: 'M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17ZM3.6 12h16.8M12 3.5c2.1 2.3 3.2 5.2 3.2 8.5s-1.1 6.2-3.2 8.5c-2.1-2.3-3.2-5.2-3.2-8.5S9.9 5.8 12 3.5Z',
   checkCircle: 'M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Zm-4-8.8 3 3 5-5.4',
   chevronRight: 'm9.5 5 7 7-7 7',
   chevronLeft: 'm14.5 5-7 7 7 7',
