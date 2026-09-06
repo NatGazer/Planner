@@ -228,3 +228,64 @@ test('the dashboard per-type overdue count excludes deactivated rules', () => {
   assert.equal(outstanding.length, 1);
   assert.equal(outstanding[0].rule.id, live.id);
 });
+
+test('an interval that would leave the supported date range is refused with a reason', () => {
+  const type = catalog.createType(db, { name: 'Bridge crane' }, admin);
+  assert.throws(
+    () => catalog.createRule(db, { typeId: type.id, title: 'Structural survey', intervalValue: 9999, intervalUnit: 'years' }, admin, { today: TODAY }),
+    (e) => e.code === 'VALIDATION' && /fifty years/.test(e.message),
+  );
+  // The realistic end of the range still works.
+  const ok = catalog.createRule(db, { typeId: type.id, title: 'Structural survey', intervalValue: 50, intervalUnit: 'years' }, admin, { today: TODAY });
+  assert.equal(ok.rule.intervalValue, 50);
+});
+
+test('a search term containing LIKE wildcards matches itself', () => {
+  const type = catalog.createType(db, { name: 'Odd names' }, admin);
+  catalog.createRule(db, { typeId: type.id, title: 'Check it', intervalValue: 1, intervalUnit: 'months' }, admin, { today: TODAY });
+  catalog.createEquipment(db, { code: 'PCT-100%', name: 'Full load unit', typeId: type.id }, admin, { today: TODAY });
+  catalog.createEquipment(db, { code: 'PCT-1000', name: 'Other unit', typeId: type.id }, admin, { today: TODAY });
+
+  const literal = queries.outstandingTasks(db, { today: TODAY, search: 'PCT-100%' });
+  assert.equal(literal.length, 1, 'the % is a character, not a wildcard');
+  assert.equal(literal[0].equipment.code, 'PCT-100%');
+
+  const both = queries.outstandingTasks(db, { today: TODAY, search: 'PCT-100' });
+  assert.equal(both.length, 2, 'and an ordinary prefix still matches both');
+});
+
+test('duplicating an item whose code is already at the limit still works', () => {
+  const type = catalog.createType(db, { name: 'Long codes' }, admin);
+  catalog.createRule(db, { typeId: type.id, title: 'Look at it', intervalValue: 1, intervalUnit: 'months' }, admin, { today: TODAY });
+  const longCode = 'X'.repeat(40);
+  const source = catalog.createEquipment(db, { code: longCode, name: 'Maximal', typeId: type.id }, admin, { today: TODAY }).equipment;
+
+  const [copy] = catalog.duplicateEquipment(db, source.id, {}, admin, { today: TODAY });
+  assert.ok(copy.code.length <= 40);
+  assert.notEqual(copy.code, longCode);
+  assert.ok(copy.code.endsWith('-01'), 'the suffix is what makes it unique, so it is what survives');
+
+  // Duplicating the same item again walks past the codes already taken
+  // instead of colliding and making the administrator invent one.
+  const three = catalog.duplicateEquipment(db, source.id, { count: 3 }, admin, { today: TODAY });
+  assert.equal(new Set(three.map((c) => c.code)).size, 3);
+  assert.ok(three.every((c) => c.code.length <= 40));
+  assert.ok(!three.some((c) => c.code === copy.code));
+});
+
+test('a list that hits its ceiling says so rather than hiding rows', () => {
+  const tiny = queries.outstandingTasks(db, { today: TODAY, limit: 2 });
+  assert.equal(tiny.length, 2);
+  assert.equal(tiny.truncated, true);
+  const whole = queries.outstandingTasks(db, { today: TODAY, limit: 5000 });
+  assert.equal(whole.truncated, false);
+});
+
+test('a nonsense limit or offset is ignored, not bound into the query', () => {
+  assert.doesNotThrow(() => queries.outstandingTasks(db, { today: TODAY, limit: 'banana' }));
+  assert.doesNotThrow(() => queries.completionHistory(db, { limit: 'banana', offset: 'also banana' }));
+  assert.doesNotThrow(() => queries.completionHistory(db, { limit: -5, offset: -12 }));
+  assert.doesNotThrow(() => require('../domain/audit.js').list(db, { limit: NaN }));
+  const sane = queries.completionHistory(db, { limit: 'banana' });
+  assert.ok(sane.items.length <= 200);
+});

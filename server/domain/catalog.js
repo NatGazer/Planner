@@ -227,9 +227,31 @@ function duplicateEquipment(db, id, { code, name, location, count = 1, firstDueD
     const source = tx.get('SELECT * FROM equipment WHERE id = ? AND archived = 0', [id]);
     if (!source) throw notFound('That equipment no longer exists.');
     const created = [];
+    const CODE_MAX = 40;
+    const taken = new Set(
+      tx.all('SELECT code FROM equipment').map((r) => String(r.code).toLowerCase()),
+    );
+    // Trim the base, never the suffix: the suffix is what makes the code
+    // unique, so an item whose code is already at the limit can still be
+    // duplicated instead of failing every time.
+    const build = (base, tail) => `${String(base).slice(0, Math.max(1, CODE_MAX - tail.length))}${tail}`;
+
+    let sequence = 0;
     for (let i = 0; i < n; i += 1) {
-      const suffix = n === 1 ? '' : `-${String(i + 1).padStart(2, '0')}`;
-      const nextCode = need((code ? `${code}${suffix}` : `${source.code}-COPY${suffix || '-01'}`), 'Asset code', 40);
+      const base = code ? String(code) : `${source.code}-COPY`;
+      let nextCode;
+      if (code && n === 1) {
+        nextCode = need(build(base, ''), 'Asset code', CODE_MAX);
+      } else {
+        // Walk to the next free suffix, so duplicating the same item twice
+        // gives -01 then -02 rather than a collision the person has to
+        // resolve by hand.
+        do {
+          sequence += 1;
+          nextCode = build(base, `-${String(sequence).padStart(2, '0')}`);
+        } while (taken.has(nextCode.toLowerCase()) && sequence < 999);
+      }
+      taken.add(nextCode.toLowerCase());
       const res = createEquipment(tx, {
         code: nextCode,
         name: name ? String(name) : source.name,
@@ -295,11 +317,28 @@ function getRule(db, id) {
   return row ? ruleShape(row) : null;
 }
 
+/**
+ * Fifty years is the ceiling, in whatever unit it is expressed. Beyond that a
+ * due date leaves the four-digit year the wire format is built on, and the
+ * task becomes unreadable the moment it is written — so the limit is enforced
+ * here, where it can still be explained, rather than surfacing later as a
+ * parse error on a row nobody can now open.
+ */
+const MAX_INTERVAL = { days: 18262, weeks: 2609, months: 600, years: 50 };
+
 function validateInterval(value, unit) {
   const v = Number(value);
-  if (!Number.isInteger(v) || v <= 0) throw badRequest('VALIDATION', 'Interval must be a whole number greater than zero.', { field: 'intervalValue' });
-  if (v > 9999) throw badRequest('VALIDATION', 'Interval is unrealistically large.', { field: 'intervalValue' });
-  if (!UNITS.has(unit)) throw badRequest('VALIDATION', 'Interval unit must be days, weeks, months or years.', { field: 'intervalUnit' });
+  if (!Number.isInteger(v) || v <= 0) {
+    throw badRequest('VALIDATION', 'Interval must be a whole number greater than zero.', { field: 'intervalValue' });
+  }
+  if (!UNITS.has(unit)) {
+    throw badRequest('VALIDATION', 'Interval unit must be days, weeks, months or years.', { field: 'intervalUnit' });
+  }
+  if (v > MAX_INTERVAL[unit]) {
+    throw badRequest('VALIDATION',
+      `Intervals are capped at about fifty years, which in ${unit} is ${MAX_INTERVAL[unit]}.`,
+      { field: 'intervalValue' });
+  }
   return v;
 }
 
@@ -392,7 +431,7 @@ function archiveRule(db, id, actor) {
 }
 
 module.exports = {
-  ACCENTS, ICONS,
+  ACCENTS, ICONS, MAX_INTERVAL,
   listTypes, createType, updateType, archiveType,
   listEquipment, getEquipment, createEquipment, updateEquipment, duplicateEquipment, archiveEquipment, equipmentShape,
   listRules, getRule, createRule, updateRule, archiveRule, ruleShape,

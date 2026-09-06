@@ -22,6 +22,18 @@ const port = Number(arg('port', config.ports[role] || 4310));
 const { server, db } = createApp({ role, staticDir: arg('static', defaultStaticDir(role)) });
 const { today, opened } = warmUp(db);
 
+// A port already in use is a startup failure, not a runtime hiccup — say so
+// in one line and exit, rather than lingering as a process that serves
+// nothing. (The uncaughtException backstop below is for live requests.)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    process.stderr.write(`\n  Port ${port} is already in use. Stop whatever is on it, or pass --port.\n\n`);
+  } else {
+    process.stderr.write(`\n  ${role} app could not start: ${err.message}\n\n`);
+  }
+  process.exit(1);
+});
+
 server.listen(port, () => {
   const label = role === 'admin' ? 'Admin' : 'Worker';
   process.stdout.write(

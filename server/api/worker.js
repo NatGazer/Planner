@@ -30,11 +30,14 @@ function register(router, ctx) {
     actorOrThrow(ctx, req);
     const t = today();
     const search = url.searchParams.get('search') || null;
-    const tasks = queries.outstandingTasks(db, { today: t, search });
+    // The whole shared list, not a page of it: a worker must never be unable
+    // to see a job because it fell past a silent limit.
+    const tasks = queries.outstandingTasks(db, { today: t, search, limit: 5000 });
     send(res, 200, {
       today: t,
       timezone: config.businessTimezone,
       counts: queries.outstandingCounts(db, { today: t, search }),
+      truncated: !!tasks.truncated,
       tasks,
     });
   });

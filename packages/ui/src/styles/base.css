@@ -31,6 +31,10 @@ body {
 }
 
 h1, h2, h3, h4, p, figure, dl, dd, ol, ul { margin: 0; }
+/* Field notes and equipment names come from people, and people paste serial
+   numbers and URLs. Nothing may escape the surface it is written on. */
+p, dd, li, blockquote, .completion-detail__comment p, .w-instructions p,
+.hero__instructions, .rule-card__instructions, .timeline__summary { overflow-wrap: anywhere; }
 ol, ul { padding: 0; list-style: none; }
 img, svg { display: block; max-width: 100%; }
 button, input, select, textarea { font: inherit; color: inherit; }

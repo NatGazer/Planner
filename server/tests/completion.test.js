@@ -85,7 +85,7 @@ test('history freezes a snapshot that later renames and archives cannot rewrite'
   const originalInterval = completion.rule.intervalValue;
 
   catalog.updateEquipment(db, item.id, { name: 'Renamed chiller', location: 'Somewhere else' }, admin, { today: TODAY });
-  catalog.updateRule(db, rule.id, { title: 'Renamed rule', intervalValue: 99, intervalUnit: 'years' }, admin);
+  catalog.updateRule(db, rule.id, { title: 'Renamed rule', intervalValue: 7, intervalUnit: 'years' }, admin);
   catalog.archiveRule(db, rule.id, admin);
   catalog.archiveEquipment(db, item.id, admin);
 

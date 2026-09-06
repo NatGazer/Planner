@@ -65,3 +65,12 @@ test('malformed dates are rejected rather than coerced', () => {
   assert.equal(t.isValidDate('2024-02-29'), true);
   assert.equal(t.isValidDate('2025-02-29'), false);
 });
+
+test('a date beyond the supported range is refused where it is written', () => {
+  // A 9999-year interval used to be accepted, and produced a five-digit year
+  // that the parser then rejected on every read — the task became unopenable.
+  assert.throws(() => t.addInterval('2026-09-06', 9999, 'years'), /out of supported range/);
+  assert.throws(() => t.addInterval('2026-09-06', 3_000_000, 'days'), /out of supported range/);
+  assert.equal(t.addInterval('2026-09-06', 50, 'years'), '2076-09-06');
+  assert.equal(t.MAX_YEAR, 9999);
+});

@@ -45,6 +45,7 @@ function register(router, ctx) {
       ...shared,
       bucket: q.get('bucket') || null,
       on: isValidDate(q.get('on')) ? q.get('on') : null,
+      limit: 5000,
     });
     send(res, 200, {
       today: t,
@@ -54,6 +55,7 @@ function register(router, ctx) {
       // showing what you would get by switching to them.
       counts: queries.outstandingCounts(db, shared),
       shown: tasks.length,
+      truncated: !!tasks.truncated,
     });
   });
 

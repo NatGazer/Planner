@@ -94,7 +94,7 @@ export function useTilt({ max = 5, scale = 1.012, glare = true, spring = { stiff
  * A number that rolls up to its target. Writes straight to the DOM node so a
  * counting stat never re-renders its subtree.
  */
-export function useCountUp(value: number, { duration = 1.05, decimals = 0, delay = 0 } = {}) {
+export function useCountUp(value: number, { duration = 0.78, decimals = 0, delay = 0 } = {}) {
   const reduced = usePrefersReducedMotion();
   const ref = useRef<HTMLSpanElement | null>(null);
   const previous = useRef(0);

@@ -7,6 +7,20 @@ const { describeDue, addDays, compareDates, daysBetween } = require('./time.js')
 
 // --- row → client shape -----------------------------------------------------
 
+/**
+ * Escape the LIKE metacharacters so a search term matches itself. Without this
+ * an asset code containing `_` matches any single character, and one
+ * containing `%` matches everything — the search quietly lies.
+ */
+const likeTerm = (raw) => `%${String(raw).replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+
+/** Coerce a caller-supplied number, or fall back — never bind NaN. */
+const bounded = (raw, fallback, min, max) => {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(n)));
+};
+
 const typeShape = (r) => (r.type_id ? {
   id: r.type_id, name: r.type_name, accent: r.type_accent || 'aurora', icon: r.type_icon || 'cube',
 } : null);
@@ -68,13 +82,19 @@ function outstandingTasks(db, { today, includeHidden = false, equipmentId = null
   else if (bucket === 'later') { where.push('t.due_date > ?'); params.push(addDays(today, 7)); }
   if (on) { where.push('t.due_date = ?'); params.push(on); }
   if (search) {
-    where.push('(e.code LIKE ? OR e.name LIKE ? OR r.title LIKE ? OR e.location LIKE ?)');
-    const q = `%${search}%`;
+    where.push(`(e.code LIKE ? ESCAPE '\\' OR e.name LIKE ? ESCAPE '\\' OR r.title LIKE ? ESCAPE '\\' OR e.location LIKE ? ESCAPE '\\')`);
+    const q = likeTerm(search);
     params.push(q, q, q, q);
   }
+  // One row over the cap tells the caller the list was cut, so nothing is ever
+  // silently missing from a list somebody is working from.
+  const cap = bounded(limit, 500, 1, 5000);
   const sql = `${TASK_SELECT} WHERE ${where.join(' AND ')}
                ORDER BY t.due_date ASC, e.code ASC, r.title ASC LIMIT ?`;
-  return db.all(sql, [...params, Math.min(Number(limit) || 500, 1000)]).map((r) => taskShape(r, today));
+  const rows = db.all(sql, [...params, cap + 1]);
+  const shaped = rows.slice(0, cap).map((r) => taskShape(r, today));
+  shaped.truncated = rows.length > cap;
+  return shaped;
 }
 
 function taskById(db, id, today) {
@@ -123,14 +143,14 @@ function completionHistory(db, { equipmentId = null, ruleId = null, employeeId =
   if (from) { where.push('c.completed_on >= ?'); params.push(from); }
   if (to) { where.push('c.completed_on <= ?'); params.push(to); }
   if (search) {
-    where.push('(c.snap_equipment_code LIKE ? OR c.snap_equipment_name LIKE ? OR c.snap_rule_title LIKE ? OR c.snap_employee_name LIKE ? OR c.comment LIKE ?)');
-    const q = `%${search}%`;
+    where.push(`(c.snap_equipment_code LIKE ? ESCAPE '\\' OR c.snap_equipment_name LIKE ? ESCAPE '\\' OR c.snap_rule_title LIKE ? ESCAPE '\\' OR c.snap_employee_name LIKE ? ESCAPE '\\' OR c.comment LIKE ? ESCAPE '\\')`);
+    const q = likeTerm(search);
     params.push(q, q, q, q, q);
   }
   const sql = `SELECT c.* FROM completions c
                ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
                ORDER BY c.completed_at DESC LIMIT ? OFFSET ?`;
-  const rows = db.all(sql, [...params, Math.min(Number(limit) || 200, 500), Number(offset) || 0]);
+  const rows = db.all(sql, [...params, bounded(limit, 200, 1, 500), bounded(offset, 0, 0, 1_000_000)]);
   const countSql = `SELECT COUNT(*) AS n FROM completions c ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`;
   const total = db.get(countSql, params)?.n ?? rows.length;
   return { items: rows.map(completionShape), total };
@@ -279,7 +299,7 @@ function dashboard(db, { today }) {
  * "Overdue 13 · Today 0" the moment you selected Overdue.
  */
 function outstandingCounts(db, { today, includeHidden = false, equipmentId = null, typeId = null, ruleId = null, search = null }) {
-  const all = outstandingTasks(db, { today, includeHidden, equipmentId, typeId, ruleId, search, limit: 1000 });
+  const all = outstandingTasks(db, { today, includeHidden, equipmentId, typeId, ruleId, search, limit: 5000 });
   const of = (b) => all.filter((t) => t.due.bucket === b).length;
   return { total: all.length, overdue: of('overdue'), today: of('today'), soon: of('soon'), later: of('later') };
 }

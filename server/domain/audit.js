@@ -26,7 +26,9 @@ function list(db, { limit = 200, entity = null, entityId = null } = {}) {
   if (entityId) { where.push('entity_id = ?'); params.push(entityId); }
   const sql = `SELECT * FROM audit_log ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
                ORDER BY at DESC LIMIT ?`;
-  return db.all(sql, [...params, Math.min(Number(limit) || 200, 500)]).map((r) => ({
+  const n = Number(limit);
+  const cap = Number.isFinite(n) ? Math.min(500, Math.max(1, Math.trunc(n))) : 200;
+  return db.all(sql, [...params, cap]).map((r) => ({
     ...r, detail: r.detail ? JSON.parse(r.detail) : null,
   }));
 }

@@ -27,7 +27,16 @@ function isValidDate(iso) {
   try { parseDate(iso); return true; } catch { return false; }
 }
 
+/** Calendar dates in this system are four-digit years, by definition of the
+ *  wire format. Anything outside that is caught here, when it is written,
+ *  rather than at every read for the rest of the row's life. */
+const MIN_YEAR = 1900;
+const MAX_YEAR = 9999;
+
 function formatDate({ year, month, day }) {
+  if (year < MIN_YEAR || year > MAX_YEAR) {
+    throw new RangeError(`Date out of supported range: year ${year} (must be ${MIN_YEAR}–${MAX_YEAR})`);
+  }
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
@@ -51,7 +60,10 @@ function toEpochDay(iso) {
 }
 
 function fromEpochDay(epochDay) {
-  const d = new Date(epochDay * 86400000);
+  const ms = epochDay * 86400000;
+  if (!Number.isFinite(ms)) throw new RangeError('Date out of supported range');
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) throw new RangeError('Date out of supported range');
   return formatDate({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() });
 }
 
@@ -156,6 +168,8 @@ function describeDue(dueDate, today) {
 module.exports = {
   DATE_RE,
   UNITS,
+  MIN_YEAR,
+  MAX_YEAR,
   parseDate,
   isValidDate,
   formatDate,
