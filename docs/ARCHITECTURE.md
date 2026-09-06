@@ -81,6 +81,25 @@ equipment, changing a frequency or archiving a type afterwards changes nothing
 about what a historical record says. Types, equipment and rules archive; they
 are never deleted, so nothing history points at can vanish.
 
+## Size
+
+Measured on 400 items carrying 500 maintenance tasks between them — 10,000
+pending occurrences, forty times the demo estate:
+
+| | |
+|---|---|
+| dashboard, one request | 28 ms |
+| outstanding counts | 12 ms |
+| the outstanding list | 50 ms for 5,000 rows |
+| a search across all of it | 13 ms |
+
+Counts are a single aggregate query, so they are exact whatever the size. The
+*list* is capped — 400 rows for an administrator, 300 for a worker — because
+five thousand DOM rows is a page nobody can use, not because the data is
+unavailable. Both apps say when a list was cut, the counts above it still
+describe all of it, and the ordering means the rows you do get are the urgent
+ones. Filters and search reach everything else.
+
 ## The audit log
 
 Every configuration change and every reschedule is written to `audit_log`

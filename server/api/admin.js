@@ -45,7 +45,7 @@ function register(router, ctx) {
       ...shared,
       bucket: q.get('bucket') || null,
       on: isValidDate(q.get('on')) ? q.get('on') : null,
-      limit: 5000,
+      limit: 400,
     });
     send(res, 200, {
       today: t,

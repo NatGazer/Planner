@@ -191,8 +191,8 @@ export function TaskBoard() {
           <Icon name="info" size={15} />
           <p>
             Showing the <strong>{list.data.shown}</strong> most urgent of{' '}
-            <strong>{counts?.total}</strong> outstanding tasks. Narrow it with a type,
-            an equipment item or a search to see the rest.
+            <strong>{counts?.total}</strong> outstanding tasks — the counts above cover
+            all of them. Filter by type or equipment, or search, to reach the rest.
           </p>
         </div>
       ) : null}

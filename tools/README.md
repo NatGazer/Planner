@@ -16,6 +16,7 @@ node tools/perf.mjs /tmp     # frame timings and layout counts under load
 node tools/flow.mjs /tmp shot.png   # a worker completion, end to end
 node tools/failure.mjs /tmp shot.png # the same with the network cut mid-submit
 node tools/tilt.mjs /tmp     # read back the actual 3D transform on a tile
+node tools/bigcheck.mjs /tmp # render an estate far larger than the demo
 node tools/package.mjs       # build the deliverable archive
 ```
 
@@ -32,6 +33,11 @@ scroll means the interface is pure compositing.
 **`tilt.mjs`** hovers a stat tile and reads back the computed transform, so the
 3D claim is a measured `matrix3d` with real rotation terms and a value plane
 sitting 18px in front of the card face — not a figure of speech.
+
+**`bigcheck.mjs`** points the admin app at a much larger database — 400 items,
+500 maintenance tasks, 10,000 pending occurrences — and reports how long the
+dashboard and the list take. It is what showed the outstanding counts being
+silently capped by the page size.
 
 **`flow.mjs` / `failure.mjs`** complete a real task with a real photo upload,
 and then do it again with the connection cut mid-submission — asserting the

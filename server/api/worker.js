@@ -30,9 +30,10 @@ function register(router, ctx) {
     actorOrThrow(ctx, req);
     const t = today();
     const search = url.searchParams.get('search') || null;
-    // The whole shared list, not a page of it: a worker must never be unable
-    // to see a job because it fell past a silent limit.
-    const tasks = queries.outstandingTasks(db, { today: t, search, limit: 5000 });
+    // The most urgent 300, which is far more than a shift can hold, and the
+    // list is ordered so those are the ones that matter. The counts below are
+    // exact regardless, and search reaches anything past the cut.
+    const tasks = queries.outstandingTasks(db, { today: t, search, limit: 300 });
     send(res, 200, {
       today: t,
       timezone: config.businessTimezone,
