@@ -13,15 +13,18 @@ no role toggle.
 
 ## Run it
 
-Requires **Node 22.5 or newer** — nothing else. No database server, no Docker,
-no native build step.
+Requires **Node 22.5 or newer**. Nothing else — no database server, no Docker,
+no native build step, and no network connection.
 
 ```bash
-npm install     # dependencies for the two front ends
-npm run seed    # a demo estate: 25 items, 19 maintenance tasks, ~220 completions
-npm run build   # build both apps
-npm start       # admin on :4310, worker on :4320
+npm start
 ```
+
+That is the whole thing. Both apps are already built, and the demo estate is
+already in the box: 25 pieces of equipment, 19 maintenance tasks and 220
+completed jobs with real photographs. The server has **no third-party
+dependencies at all**, so `npm install` is only needed if you want to rebuild
+the front ends.
 
 Then open:
 
@@ -36,18 +39,21 @@ device toolbar — it is designed for a thumb, not a mouse.
 Two more demo workers exist (`mariana@` and `kwame@`, same password) if you
 want to watch two people race for the same job.
 
-### While developing
+### Working on it
 
 ```bash
-npm run dev     # both API servers plus both Vite dev servers, one terminal
+npm install          # front-end dependencies (the server needs none)
+npm run dev          # both API servers and both Vite dev servers, one terminal
+npm run build        # rebuild both apps
+npm test             # 66 tests
+npm run seed:reset   # wipe and rebuild the demo estate
 ```
 
 Admin UI on <http://localhost:5310>, worker UI on <http://localhost:5320>.
 
-```bash
-npm test        # 37 tests: calendar maths, scheduling, completion, permissions
-npm run seed:reset   # wipe and rebuild the demo estate
-```
+Starting from an empty database instead? Delete `.data/` and run
+`npm run start:admin` — the overview will walk you through creating your first
+equipment type.
 
 ---
 
