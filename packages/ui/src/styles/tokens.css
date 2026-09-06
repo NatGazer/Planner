@@ -69,7 +69,7 @@
 
   --text-hi: #EDF1FA;
   --text-mid: #A7B3C9;
-  --text-low: #77859E;
+  --text-low: #8B97AD;   /* lifted so it still clears AA on accent-tinted cards */
   --text-inverse: #070A11;
 
   /* Shadows carry a cool cast at night; the triplet is piped into rgba(). */
@@ -82,6 +82,14 @@
   --brand-lume: #3260F5;   /* white label on this is 5.1:1 */
   --brand-soft: rgba(59, 107, 255, 0.16);
   --brand-on: #FFFFFF;
+
+  /* Identity chips — small circles carrying white initials. Both ends of each
+     gradient are measured against white at 12–13px, because an avatar is the
+     one place a decorative brand colour ends up behind actual text. */
+  --chip-brand-a: #3A66E8;  /* 4.95:1 */
+  --chip-brand-b: #2A4FD6;  /* 6.59:1 */
+  --chip-ice-a:   #0F6E96;  /* 5.69:1 */
+  --chip-ice-b:   #1A5BA8;  /* 6.76:1 */
 
   --status-overdue: #FF6B7E;
   --status-overdue-ink: #FF8E9C;
@@ -143,9 +151,11 @@
   --hairline-strong: rgba(20, 30, 52, 0.18);
 
   --text-hi: #0D1320;
-  --text-mid: #46536A;   /*  8.6:1 on white */
-  --text-low: #57627A;   /*  6.1:1 on white — measured on composited pixels,
-                             not on the token pair, because these sit on cards */
+  --text-mid: #424E64;   /*  9.3:1 on white */
+  --text-low: #4C556A;   /*  7.3:1 on white. Both are set from the *worst*
+                             surface they land on, not from white: these sit on
+                             tinted rows and cards, and `tools/a11y.mjs` reads
+                             the pixel each glyph is actually painted over. */
   --text-inverse: #FFFFFF;
 
   /* Warm shadows in daylight: brown-black, never grey. */
@@ -159,11 +169,16 @@
   --brand-soft: rgba(46, 91, 255, 0.1);
   --brand-on: #FFFFFF;
 
+  --chip-brand-a: #2952F0;  /* 5.9:1  */
+  --chip-brand-b: #1D46CE;  /* 7.45:1 */
+  --chip-ice-a:   #0F6E96;  /* 5.69:1 */
+  --chip-ice-b:   #1A5BA8;  /* 6.76:1 */
+
   --status-overdue: #E03356;
-  --status-overdue-ink: #BE1338;
+  --status-overdue-ink: #A21030;
   --status-overdue-soft: rgba(224, 51, 86, 0.1);
   --status-today: #E08600;
-  --status-today-ink: #9A5B00;
+  --status-today-ink: #834D00;
   --status-today-soft: rgba(224, 134, 0, 0.12);
   --status-soon: #0EA5E9;
   --status-soon-ink: #0B6E96;
@@ -172,7 +187,7 @@
   --status-later-ink: #57616F;
   --status-later-soft: rgba(122, 133, 152, 0.13);
   --status-ok: #0FA97C;
-  --status-ok-ink: #067354;
+  --status-ok-ink: #05664B;
   --status-ok-soft: rgba(15, 169, 124, 0.12);
 
   --accent-aurora: #0DAE94;  --accent-aurora-ink: #077461;  --accent-aurora-soft: rgba(13, 174, 148, 0.12);

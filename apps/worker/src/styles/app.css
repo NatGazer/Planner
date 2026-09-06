@@ -80,7 +80,7 @@ body { overscroll-behavior-y: none; }
   border-radius: 50%;
   font-size: var(--t-13); font-weight: var(--w-bold);
   color: var(--brand-on);
-  background: linear-gradient(150deg, var(--accent-ice), var(--brand-lume));
+  background: linear-gradient(150deg, var(--chip-ice-a), var(--chip-ice-b));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 

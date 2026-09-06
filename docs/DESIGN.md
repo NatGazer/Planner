@@ -17,17 +17,33 @@ nothing is translucent over it, text contrast is a fixed measured number rather
 than a function of what the background happens to be doing at that moment.
 
 Contrast was measured on **real composited pixels**, in a browser, in both
-themes, across every screen — `tools/a11y.mjs` walks each text node, resolves
-the first opaque ancestor background, and computes the WCAG ratio. Not on token
-pairs in isolation, which is how palettes pass on paper and fail on screen.
+themes, across every screen. `tools/a11y.mjs` makes the glyphs transparent,
+screenshots the page, and reads the pixel each run of text was sitting on — not
+the first opaque ancestor background, and not the token pair. Resolving an
+ancestor is the usual shortcut and it is wrong here, because a gradient leaves
+`background-color` transparent: it invented four failures that were not there
+and hid two that were.
+
+Both of those were real and are fixed. White initials on the avatar sat at
+3.5:1 in dark, because the light end of a brand gradient is not a background
+for text; identity chips now have their own token pair, measured at both ends.
+And the tertiary text tokens were set against the base surface rather than the
+*tinted* rows they mostly land on, which put a fifth of the small text between
+3.6 and 4.4:1. Both text tiers and four status inks were re-set from the worst
+surface each one actually meets.
+
+The current reading, 1176 runs across both apps, both themes, every screen:
 
 | | dark | light |
 |---|---|---|
-| secondary text on a card | 8.2 : 1 | 7.8 : 1 |
-| tertiary text on a card | 4.7 : 1 | 6.1 : 1 |
-| overdue ink | 8.0 : 1 | 6.3 : 1 |
-| due-today ink | 11.4 : 1 | 5.4 : 1 |
-| white on the primary button | 5.1 : 1 | 5.9 : 1 |
+| **tightest reading anywhere** | **4.62 : 1** | **5.06 : 1** |
+| secondary text on a card | 5.43 : 1 | 5.72 : 1 |
+| tertiary text on a row | 5.20 : 1 | 5.66 : 1 |
+| status ink on its own tinted row | 5.22 : 1 | 5.26 : 1 |
+| white on the primary button | 5.04 : 1 | 5.84 : 1 |
+| initials on the avatar | 5.68 : 1 | 6.62 : 1 |
+
+Nothing is below AA. `node tools/a11y.mjs --worst` prints that table.
 
 ## The material
 
