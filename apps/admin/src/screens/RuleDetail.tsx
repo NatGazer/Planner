@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from '@ui/lib/router';
 import { useResource } from '@ui/lib/useResource';
 import { useSession, useSignOutOn401 } from '@ui/lib/session';
 import { usePrefersReducedMotion } from '@ui/anim/hooks';
-import { listContainer, riseIn, stillContainer } from '@ui/anim/motion';
+import { listContainer, riseIn, spring, stillContainer } from '@ui/anim/motion';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { Segmented } from '@ui/components/Field';
@@ -110,68 +110,78 @@ export function RuleDetail({ id }: { id: string }) {
         ]}
       />
 
-      {tab === 'schedule' ? (
-        <motion.div variants={reduced ? stillContainer : listContainer(visible.length)} initial="hidden" animate="shown" className="detail-body">
-          {visible.length ? (
-            <div className="stack-list">
-              {visible.map((task) => (
-                <TaskRow
-                  key={task.id} task={task} today={today} showRule={false}
-                  onOpen={() => navigate(`/equipment/${task.equipment.id}`)}
-                  onReschedule={() => setRescheduling(task)}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon="calendar"
-              title={rule.active ? 'No equipment of this type yet' : 'Schedules hidden while deactivated'}
-              body={rule.active
-                ? 'Add equipment of this type and it will inherit this task with its own schedule.'
-                : 'Every pending occurrence still exists and keeps its date. Reactivate to bring them back.'}
-              action={rule.active
-                ? <Button variant="secondary" icon="plus" onClick={() => navigate(`/equipment?type=${rule.type.id}`)}>See equipment</Button>
-                : <Button variant="primary" icon="power" onClick={toggleActive}>Reactivate</Button>}
-            />
-          )}
-          {hidden ? (
-            <div className="note-strip">
-              <Icon name="info" size={15} />
-              <p><strong>{plural(hidden, 'occurrence')}</strong> hidden because the equipment is deactivated. Dates are preserved.</p>
-            </div>
-          ) : null}
-        </motion.div>
-      ) : null}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={tab}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduced ? { opacity: 0 } : { opacity: 0, y: -6, transition: { duration: 0.14 } }}
+          transition={spring.glide}
+        >
+        {tab === 'schedule' ? (
+          <motion.div variants={reduced ? stillContainer : listContainer(visible.length)} initial="hidden" animate="shown" className="detail-body">
+            {visible.length ? (
+              <div className="stack-list">
+                {visible.map((task) => (
+                  <TaskRow
+                    key={task.id} task={task} today={today} showRule={false}
+                    onOpen={() => navigate(`/equipment/${task.equipment.id}`)}
+                    onReschedule={() => setRescheduling(task)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon="calendar"
+                title={rule.active ? 'No equipment of this type yet' : 'Schedules hidden while deactivated'}
+                body={rule.active
+                  ? 'Add equipment of this type and it will inherit this task with its own schedule.'
+                  : 'Every pending occurrence still exists and keeps its date. Reactivate to bring them back.'}
+                action={rule.active
+                  ? <Button variant="secondary" icon="plus" onClick={() => navigate(`/equipment?type=${rule.type.id}`)}>See equipment</Button>
+                  : <Button variant="primary" icon="power" onClick={toggleActive}>Reactivate</Button>}
+              />
+            )}
+            {hidden ? (
+              <div className="note-strip">
+                <Icon name="info" size={15} />
+                <p><strong>{plural(hidden, 'occurrence')}</strong> hidden because the equipment is deactivated. Dates are preserved.</p>
+              </div>
+            ) : null}
+          </motion.div>
+        ) : null}
 
-      {tab === 'history' ? (
-        <motion.div variants={reduced ? stillContainer : listContainer(history.length)} initial="hidden" animate="shown" className="detail-body">
-          {history.length ? (
-            <div className="stack-list">{history.map((c) => <CompletionRow key={c.id} completion={c} onOpen={() => setViewing(c.id)} />)}</div>
-          ) : (
-            <EmptyState icon="history" title="Not completed yet" body="Once this maintenance is carried out, every completion appears here with its photo." />
-          )}
-        </motion.div>
-      ) : null}
+        {tab === 'history' ? (
+          <motion.div variants={reduced ? stillContainer : listContainer(history.length)} initial="hidden" animate="shown" className="detail-body">
+            {history.length ? (
+              <div className="stack-list">{history.map((c) => <CompletionRow key={c.id} completion={c} onOpen={() => setViewing(c.id)} />)}</div>
+            ) : (
+              <EmptyState icon="history" title="Not completed yet" body="Once this maintenance is carried out, every completion appears here with its photo." />
+            )}
+          </motion.div>
+        ) : null}
 
-      {tab === 'activity' ? (
-        <motion.div variants={reduced ? stillContainer : listContainer(activity.length)} initial="hidden" animate="shown" className="detail-body">
-          {activity.length ? (
-            <ol className="timeline">
-              {activity.map((entry) => (
-                <motion.li key={entry.id} variants={riseIn} className="timeline__item">
-                  <span className="timeline__dot" aria-hidden="true" />
-                  <div>
-                    <p className="timeline__summary">{entry.summary}</p>
-                    <p className="timeline__meta">{entry.actor_name} · {instantLong(entry.at)}</p>
-                    {entry.detail && typeof entry.detail === 'object' && 'note' in entry.detail
-                      ? <p className="timeline__note">{String((entry.detail as { note: string }).note)}</p> : null}
-                  </div>
-                </motion.li>
-              ))}
-            </ol>
-          ) : <EmptyState icon="activity" title="No changes recorded" />}
+        {tab === 'activity' ? (
+          <motion.div variants={reduced ? stillContainer : listContainer(activity.length)} initial="hidden" animate="shown" className="detail-body">
+            {activity.length ? (
+              <ol className="timeline">
+                {activity.map((entry) => (
+                  <motion.li key={entry.id} variants={riseIn} className="timeline__item">
+                    <span className="timeline__dot" aria-hidden="true" />
+                    <div>
+                      <p className="timeline__summary">{entry.summary}</p>
+                      <p className="timeline__meta">{entry.actor_name} · {instantLong(entry.at)}</p>
+                      {entry.detail && typeof entry.detail === 'object' && 'note' in entry.detail
+                        ? <p className="timeline__note">{String((entry.detail as { note: string }).note)}</p> : null}
+                    </div>
+                  </motion.li>
+                ))}
+              </ol>
+            ) : <EmptyState icon="activity" title="No changes recorded" />}
+          </motion.div>
+        ) : null}
         </motion.div>
-      ) : null}
+      </AnimatePresence>
 
       <RuleForm
         open={editing} onClose={() => setEditing(false)} onSaved={() => void detail.reload()}

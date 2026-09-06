@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from '@ui/lib/router';
 import { useResource } from '@ui/lib/useResource';
 import { useSession, useSignOutOn401 } from '@ui/lib/session';
 import { usePrefersReducedMotion } from '@ui/anim/hooks';
-import { listContainer, riseIn, stillContainer } from '@ui/anim/motion';
+import { listContainer, riseIn, spring, stillContainer } from '@ui/anim/motion';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { Segmented, TextField } from '@ui/components/Field';
@@ -145,87 +145,97 @@ export function EquipmentDetail({ id }: { id: string }) {
         ]}
       />
 
-      {tab === 'schedule' ? (
-        <motion.div variants={reduced ? stillContainer : listContainer(visible.length + 1)} initial="hidden" animate="shown" className="detail-body">
-          {visible.length ? (
-            <div className="stack-list">
-              {visible.map((task) => (
-                <TaskRow
-                  key={task.id} task={task} today={today} showEquipment={false}
-                  onReschedule={() => setRescheduling(task)}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon="calendar"
-              title={equipment.active ? 'No maintenance scheduled' : 'Schedule hidden while deactivated'}
-              body={equipment.active
-                ? 'Add a maintenance task to this equipment type and a schedule opens here automatically.'
-                : 'Its pending tasks still exist and keep their due dates. Reactivate the item to bring them back.'}
-              action={equipment.active
-                ? <Button variant="secondary" icon="plus" onClick={() => navigate(`/rules?type=${equipment.type.id}&new=1`)}>Add a maintenance task</Button>
-                : <Button variant="primary" icon="power" onClick={toggleActive}>Reactivate</Button>}
-            />
-          )}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={tab}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduced ? { opacity: 0 } : { opacity: 0, y: -6, transition: { duration: 0.14 } }}
+          transition={spring.glide}
+        >
+        {tab === 'schedule' ? (
+          <motion.div variants={reduced ? stillContainer : listContainer(visible.length + 1)} initial="hidden" animate="shown" className="detail-body">
+            {visible.length ? (
+              <div className="stack-list">
+                {visible.map((task) => (
+                  <TaskRow
+                    key={task.id} task={task} today={today} showEquipment={false}
+                    onReschedule={() => setRescheduling(task)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon="calendar"
+                title={equipment.active ? 'No maintenance scheduled' : 'Schedule hidden while deactivated'}
+                body={equipment.active
+                  ? 'Add a maintenance task to this equipment type and a schedule opens here automatically.'
+                  : 'Its pending tasks still exist and keep their due dates. Reactivate the item to bring them back.'}
+                action={equipment.active
+                  ? <Button variant="secondary" icon="plus" onClick={() => navigate(`/rules?type=${equipment.type.id}&new=1`)}>Add a maintenance task</Button>
+                  : <Button variant="primary" icon="power" onClick={toggleActive}>Reactivate</Button>}
+              />
+            )}
 
-          {hidden.length ? (
-            <motion.div variants={riseIn} className="note-strip">
-              <Icon name="info" size={15} />
-              <p><strong>{plural(hidden.length, 'pending task')}</strong> hidden because the maintenance task or the equipment is deactivated. Dates are preserved.</p>
-            </motion.div>
-          ) : null}
+            {hidden.length ? (
+              <motion.div variants={riseIn} className="note-strip">
+                <Icon name="info" size={15} />
+                <p><strong>{plural(hidden.length, 'pending task')}</strong> hidden because the maintenance task or the equipment is deactivated. Dates are preserved.</p>
+              </motion.div>
+            ) : null}
 
-          <motion.section variants={riseIn} className="inherited">
-            <h3 className="inherited__title">Inherited from {equipment.type.name}</h3>
-            <div className="inherited__list">
-              {(detail.data.rules ?? []).map((rule) => (
-                <button key={rule.id} type="button" className={`inherited__row${rule.active ? '' : ' is-off'}`} onClick={() => navigate(`/rules/${rule.id}`)}>
-                  <span className="inherited__name">{rule.title}</span>
-                  <CadenceChip value={rule.intervalValue} unit={rule.intervalUnit} />
-                  {!rule.active ? <span className="inherited__flag">Deactivated</span> : null}
-                  <Icon name="chevronRight" size={14} />
-                </button>
-              ))}
-            </div>
-          </motion.section>
+            <motion.section variants={riseIn} className="inherited">
+              <h3 className="inherited__title">Inherited from {equipment.type.name}</h3>
+              <div className="inherited__list">
+                {(detail.data.rules ?? []).map((rule) => (
+                  <button key={rule.id} type="button" className={`inherited__row${rule.active ? '' : ' is-off'}`} onClick={() => navigate(`/rules/${rule.id}`)}>
+                    <span className="inherited__name">{rule.title}</span>
+                    <CadenceChip value={rule.intervalValue} unit={rule.intervalUnit} />
+                    {!rule.active ? <span className="inherited__flag">Deactivated</span> : null}
+                    <Icon name="chevronRight" size={14} />
+                  </button>
+                ))}
+              </div>
+            </motion.section>
+          </motion.div>
+        ) : null}
+
+        {tab === 'history' ? (
+          <motion.div variants={reduced ? stillContainer : listContainer(history.items.length)} initial="hidden" animate="shown" className="detail-body">
+            {history.items.length ? (
+              <div className="stack-list">
+                {history.items.map((c) => <CompletionRow key={c.id} completion={c} onOpen={() => setViewing(c.id)} />)}
+              </div>
+            ) : (
+              <EmptyState icon="history" title="No completed work yet" body="Completions submitted from the worker app appear here, with the photo, the person and the exact time." />
+            )}
+          </motion.div>
+        ) : null}
+
+        {tab === 'activity' ? (
+          <motion.div variants={reduced ? stillContainer : listContainer(activity.length)} initial="hidden" animate="shown" className="detail-body">
+            {activity.length ? (
+              <ol className="timeline">
+                {activity.map((entry) => (
+                  <motion.li key={entry.id} variants={riseIn} className="timeline__item">
+                    <span className="timeline__dot" aria-hidden="true" />
+                    <div>
+                      <p className="timeline__summary">{entry.summary}</p>
+                      <p className="timeline__meta">{entry.actor_name} · {instantLong(entry.at)}</p>
+                      {entry.detail && typeof entry.detail === 'object' && 'note' in entry.detail ? (
+                        <p className="timeline__note">{String((entry.detail as { note: string }).note)}</p>
+                      ) : null}
+                    </div>
+                  </motion.li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState icon="activity" title="No changes recorded" body="Configuration changes and reschedules for this item will be listed here." />
+            )}
+          </motion.div>
+        ) : null}
         </motion.div>
-      ) : null}
-
-      {tab === 'history' ? (
-        <motion.div variants={reduced ? stillContainer : listContainer(history.items.length)} initial="hidden" animate="shown" className="detail-body">
-          {history.items.length ? (
-            <div className="stack-list">
-              {history.items.map((c) => <CompletionRow key={c.id} completion={c} onOpen={() => setViewing(c.id)} />)}
-            </div>
-          ) : (
-            <EmptyState icon="history" title="No completed work yet" body="Completions submitted from the worker app appear here, with the photo, the person and the exact time." />
-          )}
-        </motion.div>
-      ) : null}
-
-      {tab === 'activity' ? (
-        <motion.div variants={reduced ? stillContainer : listContainer(activity.length)} initial="hidden" animate="shown" className="detail-body">
-          {activity.length ? (
-            <ol className="timeline">
-              {activity.map((entry) => (
-                <motion.li key={entry.id} variants={riseIn} className="timeline__item">
-                  <span className="timeline__dot" aria-hidden="true" />
-                  <div>
-                    <p className="timeline__summary">{entry.summary}</p>
-                    <p className="timeline__meta">{entry.actor_name} · {instantLong(entry.at)}</p>
-                    {entry.detail && typeof entry.detail === 'object' && 'note' in entry.detail ? (
-                      <p className="timeline__note">{String((entry.detail as { note: string }).note)}</p>
-                    ) : null}
-                  </div>
-                </motion.li>
-              ))}
-            </ol>
-          ) : (
-            <EmptyState icon="activity" title="No changes recorded" body="Configuration changes and reschedules for this item will be listed here." />
-          )}
-        </motion.div>
-      ) : null}
+      </AnimatePresence>
 
       <EquipmentForm
         open={editing}
