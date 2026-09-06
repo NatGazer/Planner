@@ -1,0 +1,84 @@
+'use strict';
+const http = require('node:http');
+const path = require('node:path');
+const { createRouter } = require('./http/router.js');
+const { createStaticHandler } = require('./http/static.js');
+const { send, sendError, parseCookies } = require('./http/util.js');
+const { createConnector } = require('./db/connector.js');
+const sessions = require('./auth/sessions.js');
+const sched = require('./domain/scheduling.js');
+const { businessToday } = require('./domain/time.js');
+const config = require('./config.js');
+
+/**
+ * Build one app server. `role` is 'admin' or 'worker' and decides which
+ * router is mounted — the worker origin has no admin route to reach, which is
+ * the outer half of the permission story. The inner half is the per-request
+ * role check inside every handler.
+ */
+function createApp({ role, db: injected = null, staticDir = null, secureCookies = false } = {}) {
+  if (role !== 'admin' && role !== 'worker') throw new Error(`Unknown app role: ${role}`);
+
+  const db = injected || createConnector(config);
+  if (typeof db.migrate === 'function') db.migrate();
+
+  const router = createRouter();
+  const ctx = {
+    db,
+    appRole: role,
+    secureCookies,
+    tokenOf(req) {
+      const auth = String(req.headers.authorization || '');
+      if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
+      return parseCookies(req.headers.cookie)[sessions.SESSION_COOKIE] || null;
+    },
+    actorOf(req) {
+      if (req.__actorResolved) return req.__actor;
+      req.__actor = sessions.resolve(db, ctx.tokenOf(req));
+      req.__actorResolved = true;
+      return req.__actor;
+    },
+  };
+
+  require('./api/shared.js').register(router, ctx);
+  if (role === 'admin') require('./api/admin.js').register(router, ctx);
+  require('./api/worker.js').register(router, ctx);
+
+  const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
+
+  const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const pathname = decodeURIComponent(url.pathname);
+    try {
+      if (pathname === '/api/health') {
+        return send(res, 200, { ok: true, app: role, today: businessToday(config.businessTimezone), timezone: config.businessTimezone });
+      }
+      const hit = router.match(req.method, pathname);
+      if (hit) return await hit.handler(req, res, hit.params, url);
+      if (pathname.startsWith('/api/')) {
+        return send(res, router.knowsPath(pathname) ? 405 : 404, {
+          error: { code: 'NO_ROUTE', message: `No such endpoint on the ${role} app.` },
+        });
+      }
+      if (serveStatic) return serveStatic(req, res, pathname);
+      return send(res, 404, { error: { code: 'NO_ROUTE', message: 'Not found' } });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  server.on('close', () => { if (!injected) db.close(); });
+  return { server, db, router, ctx, role };
+}
+
+/** Boot-time housekeeping: expire stale sessions, heal any schedule gaps. */
+function warmUp(db) {
+  const today = businessToday(config.businessTimezone);
+  sessions.purgeExpired(db);
+  const opened = db.transaction((tx) => sched.reconcileSchedules(tx, { today }));
+  return { today, opened: opened.length };
+}
+
+const defaultStaticDir = (role) => path.join(__dirname, '..', 'apps', role, 'dist');
+
+module.exports = { createApp, warmUp, defaultStaticDir };

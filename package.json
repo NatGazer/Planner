@@ -1,0 +1,29 @@
+{
+  "name": "maintenance-suite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Two separately launchable maintenance-management apps over one shared database.",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "workspaces": [
+    "apps/admin",
+    "apps/worker"
+  ],
+  "scripts": {
+    "setup": "npm install && npm run seed && npm run build",
+    "seed": "node server/db/seed.js",
+    "seed:reset": "node server/db/seed.js --reset",
+    "dev": "node scripts/dev.js",
+    "dev:admin": "npm --workspace apps/admin run dev",
+    "dev:worker": "npm --workspace apps/worker run dev",
+    "build": "npm --workspace apps/admin run build && npm --workspace apps/worker run build",
+    "start": "node server/launch.js",
+    "start:admin": "node server/index.js --app admin",
+    "start:worker": "node server/index.js --app worker",
+    "test": "node --test --test-concurrency=1 server/tests/"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1"
+  }
+}
