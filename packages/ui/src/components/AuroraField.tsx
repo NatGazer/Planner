@@ -226,7 +226,10 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
     let raf = 0;
     let running = true;
     let last = 0;
-    let stillKey = '';
+    let still = false;
+
+    /** Ask a still field for one more frame. */
+    const redrawOnce = () => { if (still) { running = true; last = 0; } };
     const started = performance.now();
     const FRAME_MS = 1000 / 30;
 
@@ -254,10 +257,10 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
       gl.uniform1f(uGrain, u.grain);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-      // A still field still has to redraw when the palette underneath it
-      // changes, so remember what it drew and wake up if that moves.
+      // A still field is drawn once — which means anything that can discard
+      // what it drew has to be able to ask for it again.
       if (reduced || u.speed === 0) {
-        stillKey = `${u.colorA}${u.colorB}${u.colorC}${u.base}${u.intensity}`;
+        still = true;
         running = false;
       }
     };
@@ -272,7 +275,14 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
       && onScreen
       && document.documentElement.dataset.overlay !== '1'
       && !reduced;
-    const onVisibility = () => { running = shouldRun(); if (running) last = 0; };
+    const onVisibility = () => {
+      // Coming back into view repaints a still field: a backing store can be
+      // discarded while a tab is hidden, and a canvas that never redraws would
+      // come back blank.
+      if (still) { if (document.visibilityState === 'visible' && onScreen) redrawOnce(); return; }
+      running = shouldRun();
+      if (running) last = 0;
+    };
     document.addEventListener('visibilitychange', onVisibility);
 
     const overlayWatcher = new MutationObserver(onVisibility);
@@ -280,12 +290,7 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
 
     // A palette change repaints even a still field.
     const paletteWatcher = new MutationObserver(() => {
-      const u = uniforms.current;
-      if (stillKey && stillKey !== `${u.colorA}${u.colorB}${u.colorC}${u.base}${u.intensity}`) {
-        stillKey = '';
-        running = shouldRun() || u.speed === 0 || reduced;
-        last = 0;
-      }
+      if (still) redrawOnce(); else { running = shouldRun(); last = 0; }
     });
     paletteWatcher.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
@@ -294,6 +299,10 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
       onVisibility();
     });
     io.observe(canvas);
+
+    // A restored context has an empty backing store; a resize invalidates it.
+    const onRestored = () => { canvas.dataset.fallback = ''; still = false; running = true; last = 0; };
+    canvas.addEventListener('webglcontextrestored', onRestored);
 
     const onLost = (e: Event) => {
       e.preventDefault();
@@ -306,7 +315,7 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
       window.addEventListener('pointermove', onPointer, { passive: true });
       window.addEventListener('pointerleave', onLeave, { passive: true });
     }
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(() => { resize(); redrawOnce(); });
     ro.observe(canvas);
 
     return () => {
@@ -315,6 +324,7 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
       paletteWatcher.disconnect();
       io.disconnect();
       canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pointermove', onPointer);
       window.removeEventListener('pointerleave', onLeave);
