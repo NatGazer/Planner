@@ -92,6 +92,22 @@ An element carrying `transform-style: preserve-3d` never also carries
 one of those silently forces `flat` and deletes the depth without a warning
 anywhere.
 
+## What it actually measures
+
+Not asserted — traced, in a real browser, with `tools/perf.mjs`:
+
+| | frames over 34ms | layout entries | layout time |
+|---|---|---|---|
+| flinging the 58-row outstanding list | **0** | **0** | **0 ms** |
+| a pointer sweep across the whole dashboard grid | 6 of 27 | **0** | **0 ms** |
+
+Zero layout during a scroll and zero during a pointer sweep is the number that
+matters: it means the tilt, the sheen and the rows are pure compositing. The
+frames that do run long are the background shader on this machine's *software*
+GL renderer — the same trace with the canvas hidden holds a 16.7ms median.
+Which is why the field caps its own buffer, and why it stands down entirely
+if it ever turns out to be the reason frames are being missed.
+
 ## The background
 
 One full-screen triangle through one fragment shader: three slow colour fields

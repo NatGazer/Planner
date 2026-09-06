@@ -61,8 +61,11 @@ float noise(vec2 p) {
 }
 
 float fbm(vec2 p) {
-  float v = 0.0, a = 0.55;
-  for (int i = 0; i < 3; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; }
+  // Two octaves. At this softness the third octave is invisible and costs a
+  // third of the per-pixel budget — the whole field is nine noise samples a
+  // pixel with three, six with two.
+  float v = noise(p) * 0.62;
+  v += noise(p * 2.03) * 0.31;
   return v;
 }
 
@@ -203,11 +206,17 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
     const uGrain = loc('uGrain');
 
     const SCALE = 0.45;
+    const MAX_PIXELS = 620_000;          // ~1050x590 — plenty for a soft field
     let width = 0;
     let height = 0;
     const resize = () => {
-      const w = Math.max(1, Math.round(canvas.clientWidth * SCALE));
-      const h = Math.max(1, Math.round(canvas.clientHeight * SCALE));
+      const cw = Math.max(1, canvas.clientWidth);
+      const ch = Math.max(1, canvas.clientHeight);
+      let scale = SCALE;
+      const area = cw * ch * SCALE * SCALE;
+      if (area > MAX_PIXELS) scale *= Math.sqrt(MAX_PIXELS / area);
+      const w = Math.max(1, Math.round(cw * scale));
+      const h = Math.max(1, Math.round(ch * scale));
       if (w === width && h === height) return;
       width = w; height = h;
       canvas.width = w; canvas.height = h;
@@ -233,11 +242,29 @@ export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, class
     const started = performance.now();
     const FRAME_MS = 1000 / 30;
 
+    // Frame-cost guard. The field is atmosphere; if the machine cannot afford
+    // it, it gives up its place rather than costing the interface frames.
+    let slowFrames = 0;
+    let drawn = 0;
+    const standDown = () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      canvas.dataset.fallback = 'true';   // the CSS gradient takes over
+    };
+
     const draw = (now: number) => {
       raf = requestAnimationFrame(draw);
       if (!running) return;
-      if (now - last < FRAME_MS) return;
+      const sinceLast = now - last;
+      if (sinceLast < FRAME_MS) return;
       last = now;
+
+      // Give the first second to settle — first paint is always the worst.
+      if (drawn > 30) {
+        if (sinceLast > FRAME_MS * 2.2) slowFrames += 1; else slowFrames = Math.max(0, slowFrames - 1);
+        if (slowFrames > 24) { standDown(); return; }
+      }
+      drawn += 1;
       resize();
 
       const u = uniforms.current;
