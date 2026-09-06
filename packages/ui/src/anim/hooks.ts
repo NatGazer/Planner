@@ -25,9 +25,16 @@ export function usePrefersReducedMotion(): boolean {
  * Everything animates through motion values on the compositor — no React
  * re-render happens while the pointer moves.
  */
-export function useTilt({ max = 9, scale = 1.012, glare = true, spring = { stiffness: 260, damping: 26, mass: 0.6 } as SpringOptions } = {}) {
+export function useTilt({ max = 5, scale = 1.012, glare = true, spring = { stiffness: 240, damping: 28, mass: 0.55 } as SpringOptions } = {}) {
   const reduced = usePrefersReducedMotion();
+  const coarse = useMediaQuery('(hover: none), (pointer: coarse)');
+  const narrow = useMediaQuery('(max-width: 900px)');
+  const off = reduced || coarse || narrow;
   const ref = useRef<HTMLDivElement | null>(null);
+  // The element's box, measured once when the pointer arrives. Measuring it
+  // inside pointermove would force a synchronous layout on the hottest input
+  // path in the app, on the very elements being scaled and shadowed.
+  const box = useRef<DOMRect | null>(null);
   const px = useMotionValue(0.5);
   const py = useMotionValue(0.5);
   const active = useMotionValue(0);
@@ -40,27 +47,46 @@ export function useTilt({ max = 9, scale = 1.012, glare = true, spring = { stiff
   const glareOpacity = useSpring(useTransform(active, [0, 1], [0, 1]), { stiffness: 180, damping: 30 });
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLElement>) => {
-    if (reduced) return;
-    const el = e.currentTarget as HTMLElement;
-    const r = el.getBoundingClientRect();
+    const r = box.current;
+    if (!r || r.width === 0) return;
     px.set((e.clientX - r.left) / r.width);
     py.set((e.clientY - r.top) / r.height);
-  }, [px, py, reduced]);
+  }, [px, py]);
 
-  const onPointerEnter = useCallback(() => { if (!reduced) active.set(1); }, [active, reduced]);
+  const onPointerEnter = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    box.current = e.currentTarget.getBoundingClientRect();
+    active.set(1);
+  }, [active]);
+
   const onPointerLeave = useCallback(() => {
+    box.current = null;
     active.set(0);
     px.set(0.5);
     py.set(0.5);
   }, [active, px, py]);
 
-  const handlers = reduced ? {} : { onPointerMove, onPointerEnter, onPointerLeave };
+  // A scroll or a resize invalidates the cached box; both are passive and rare.
+  useEffect(() => {
+    if (off) return undefined;
+    const invalidate = () => { box.current = null; };
+    window.addEventListener('scroll', invalidate, { passive: true, capture: true });
+    window.addEventListener('resize', invalidate, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', invalidate, true);
+      window.removeEventListener('resize', invalidate);
+    };
+  }, [off]);
+
+  const handlers = off ? {} : { onPointerMove, onPointerEnter, onPointerLeave };
   return {
     ref,
     handlers,
-    style: reduced ? {} : { rotateX, rotateY, scale: lift, transformStyle: 'preserve-3d' as const },
-    glare: glare && !reduced ? { x: glareX, y: glareY, opacity: glareOpacity } : null,
-    reduced,
+    // `preserve-3d` here is load-bearing: the element carrying it must never
+    // also carry overflow, isolation, filter, mix-blend-mode or contain:paint,
+    // every one of which silently forces `transform-style: flat`.
+    style: off ? {} : { rotateX, rotateY, scale: lift, transformStyle: 'preserve-3d' as const },
+    glare: glare && !off ? { x: glareX, y: glareY, opacity: glareOpacity } : null,
+    reduced: off,
   };
 }
 
@@ -174,13 +200,23 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/** Locks body scroll while a sheet or modal is open. */
+/**
+ * Locks body scroll while a sheet or modal is open, and marks the document so
+ * the background shader can stop drawing something nobody can see.
+ */
+let overlayDepth = 0;
 export function useScrollLock(active: boolean) {
   useEffect(() => {
     if (!active) return undefined;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
+    overlayDepth += 1;
+    document.documentElement.dataset.overlay = '1';
+    return () => {
+      document.body.style.overflow = previous;
+      overlayDepth = Math.max(0, overlayDepth - 1);
+      if (overlayDepth === 0) delete document.documentElement.dataset.overlay;
+    };
   }, [active]);
 }
 

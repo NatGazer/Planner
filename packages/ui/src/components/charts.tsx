@@ -92,7 +92,7 @@ export function Sparkline({
 // --------------------------------------------------------------- bar column
 
 export interface BarsProps {
-  values: { label: string; value: number; emphasis?: boolean; title?: string }[];
+  values: { label: string; value: number; emphasis?: boolean; title?: string; carried?: number }[];
   height?: number;
   gap?: number;
   radius?: number;
@@ -101,14 +101,23 @@ export interface BarsProps {
   onSelect?: (index: number) => void;
 }
 
-/** A column chart of divs — cheaper and crisper than SVG rects at this size. */
+/**
+ * A column chart. Each bar is a full-height element scaled on the Y axis from
+ * its bottom edge, so growth is one composited transform — never an animated
+ * `height`, which would relayout the row on every frame.
+ *
+ * A bar may carry a second stacked segment (`carried`), used by the workload
+ * chart to show the overdue backlog weighing down day one.
+ */
 export function Bars({ values, height = 96, gap = 4, radius = 5, className, delay = 0.1, onSelect }: BarsProps) {
   const reduced = usePrefersReducedMotion();
   const max = Math.max(...values.map((v) => v.value), 1);
+
   return (
     <div className={className} style={{ display: 'flex', alignItems: 'flex-end', gap, height }}>
       {values.map((v, i) => {
-        const pct = Math.max(v.value === 0 ? 2.5 : 7, (v.value / max) * 100);
+        const fraction = Math.max(v.value === 0 ? 0.022 : 0.07, v.value / max);
+        const carriedFraction = v.carried ? Math.min(v.carried / Math.max(v.value, 1), 1) : 0;
         const Tag = onSelect ? motion.button : motion.div;
         return (
           <Tag
@@ -117,11 +126,19 @@ export function Bars({ values, height = 96, gap = 4, radius = 5, className, dela
             onClick={onSelect ? () => onSelect(i) : undefined}
             title={v.title ?? `${v.label}: ${v.value}`}
             className={`bar${v.emphasis ? ' bar--emphasis' : ''}${v.value === 0 ? ' bar--empty' : ''}`}
-            style={{ flex: 1, borderRadius: radius, transformOrigin: 'bottom', minWidth: 3 }}
-            initial={reduced ? false : { height: '2%', opacity: 0 }}
-            animate={{ height: `${pct}%`, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 26, mass: 0.7, delay: delay + i * 0.022 }}
-          />
+            style={{ flex: 1, minWidth: 3, height: '100%', borderRadius: radius, transformOrigin: 'bottom', position: 'relative' }}
+            initial={reduced ? { scaleY: fraction } : { scaleY: 0.012, opacity: 0 }}
+            animate={{ scaleY: fraction, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 240, damping: 27, mass: 0.7, delay: delay + Math.min(i, 13) * 0.028 }}
+          >
+            {carriedFraction > 0 ? (
+              <span
+                className="bar__carried"
+                style={{ position: 'absolute', inset: 'auto 0 0 0', height: `${carriedFraction * 100}%`, borderRadius: radius }}
+                aria-hidden="true"
+              />
+            ) : null}
+          </Tag>
         );
       })}
     </div>
@@ -178,22 +195,30 @@ export interface StackProps {
   delay?: number;
 }
 
-/** A proportional bar — the split of outstanding work by urgency. */
+/**
+ * A proportional bar — the split of outstanding work by urgency. Proportions
+ * are set once in layout; only the container's scaleX animates, so the reveal
+ * costs one composited transform rather than a relayout per frame.
+ */
 export function Stack({ segments, height = 10, className, delay = 0.25 }: StackProps) {
   const reduced = usePrefersReducedMotion();
-  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const live = segments.filter((s) => s.value > 0);
+  const total = live.reduce((s, x) => s + x.value, 0) || 1;
   return (
-    <div className={className} style={{ display: 'flex', gap: 3, height, width: '100%' }}>
-      {segments.filter((s) => s.value > 0).map((s, i) => (
-        <motion.span
+    <motion.div
+      className={className}
+      style={{ display: 'flex', gap: 3, height, width: '100%', transformOrigin: 'left center' }}
+      initial={reduced ? false : { scaleX: 0.02, opacity: 0 }}
+      animate={{ scaleX: 1, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 180, damping: 28, delay }}
+    >
+      {live.map((s) => (
+        <span
           key={s.key}
           title={`${s.label}: ${s.value}`}
-          style={{ background: s.color, borderRadius: height, display: 'block' }}
-          initial={reduced ? false : { flexGrow: 0.001, opacity: 0 }}
-          animate={{ flexGrow: s.value / total, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 30, delay: delay + i * 0.06 }}
+          style={{ background: s.color, borderRadius: height, display: 'block', flexGrow: s.value / total, flexBasis: 0 }}
         />
       ))}
-    </div>
+    </motion.div>
   );
 }

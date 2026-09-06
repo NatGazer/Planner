@@ -4,7 +4,7 @@ import { useRouter } from '@ui/lib/router';
 import { useResource } from '@ui/lib/useResource';
 import { useSession, useSignOutOn401 } from '@ui/lib/session';
 import { useDebounced, usePrefersReducedMotion, useTilt } from '@ui/anim/hooks';
-import { listContainer, riseIn, spring, stillContainer } from '@ui/anim/motion';
+import { listContainer, riseIn, setZoomOrigin, spring, stillContainer } from '@ui/anim/motion';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { Segmented, SelectField } from '@ui/components/Field';
@@ -130,12 +130,12 @@ function EquipmentCard({ item, today, onOpen }: { item: EquipmentSummary; today:
     <motion.button
       type="button"
       variants={riseIn}
-      layoutId={`equipment-${item.id}`}
       className={`eq-card ${accentClass(item.type.accent)}${item.active ? '' : ' is-inactive'}${overdue ? ' has-overdue' : ''}`}
+      onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
       onClick={onOpen}
       style={tilt.style}
       {...tilt.handlers}
-      whileTap={reduced ? undefined : { scale: 0.985 }}
+      whileTap={reduced ? undefined : { scale: 0.982 }}
       transition={spring.snap}
     >
       {tilt.glare ? <motion.span className="surface__glare" style={{ '--gx': tilt.glare.x, '--gy': tilt.glare.y, opacity: tilt.glare.opacity } as never} aria-hidden="true" /> : null}

@@ -94,6 +94,13 @@ void main() {
   col *= 1.0 - 0.30 * smoothstep(0.15, 1.05, length(p * vec2(0.82, 1.0)));
   col = mix(uBase, col, uIntensity);
 
+  // Hard luminance clamp. The field is atmosphere: it is never permitted to
+  // drift more than 5% away from the base tone, so nothing it does can move
+  // the contrast of the interface sitting on top of it.
+  float bl = dot(uBase, vec3(0.2126, 0.7152, 0.0722));
+  float cl = dot(col,   vec3(0.2126, 0.7152, 0.0722));
+  col *= clamp(bl + clamp(cl - bl, -0.05, 0.05), 0.001, 2.0) / max(cl, 0.001);
+
   // Dithering: without it, wide flat gradients band badly on 8-bit displays.
   float g = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
   col += (g - 0.5) * uGrain;
@@ -109,31 +116,47 @@ const hexToRgb = (hex: string): [number, number, number] => {
 };
 
 export interface AuroraFieldProps {
-  colorA?: string;
-  colorB?: string;
-  colorC?: string;
-  base?: string;
-  intensity?: number;
+  /**
+   * Re-read the palette from CSS when this changes. Pass the resolved theme so
+   * the field follows a light/dark switch without a second source of truth for
+   * the colours — they live in tokens.css like everything else.
+   */
+  themeKey?: string;
   grain?: number;
   /** Multiplies the drift speed. 0 renders one still frame. */
   speed?: number;
   className?: string;
 }
 
-export function AuroraField({
-  colorA = '#2b7bff',
-  colorB = '#12d6b8',
-  colorC = '#8a5cff',
-  base = '#05060d',
-  intensity = 1,
-  grain = 0.016,
-  speed = 1,
-  className,
-}: AuroraFieldProps) {
+/** Resolve the aurora tokens from the document, with sane fallbacks. */
+function readPalette() {
+  const fallback = { colorA: '#2452c8', colorB: '#0e9e92', colorC: '#6741cc', base: '#04060c', intensity: 0.5 };
+  if (typeof window === 'undefined') return fallback;
+  const cs = getComputedStyle(document.documentElement);
+  const pick = (name: string, or_: string) => (cs.getPropertyValue(name).trim() || or_);
+  return {
+    colorA: pick('--aurora-a', fallback.colorA),
+    colorB: pick('--aurora-b', fallback.colorB),
+    colorC: pick('--aurora-c', fallback.colorC),
+    base: pick('--aurora-base', fallback.base),
+    intensity: Number(pick('--aurora-intensity', String(fallback.intensity))) || fallback.intensity,
+  };
+}
+
+export function AuroraField({ themeKey = 'dark', grain = 0.014, speed = 1, className }: AuroraFieldProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const reduced = usePrefersReducedMotion();
-  const uniforms = useRef({ colorA, colorB, colorC, base, intensity, grain, speed });
-  uniforms.current = { colorA, colorB, colorC, base, intensity, grain, speed };
+  const uniforms = useRef({ ...readPalette(), grain, speed });
+
+  useEffect(() => {
+    const sync = () => { uniforms.current = { ...readPalette(), grain, speed }; };
+    sync();
+    // Watch the attribute itself rather than trusting render order: whatever
+    // flips the theme, the field follows it.
+    const watcher = new MutationObserver(sync);
+    watcher.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => watcher.disconnect();
+  }, [themeKey, grain, speed]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -203,6 +226,7 @@ export function AuroraField({
     let raf = 0;
     let running = true;
     let last = 0;
+    let stillKey = '';
     const started = performance.now();
     const FRAME_MS = 1000 / 30;
 
@@ -230,12 +254,54 @@ export function AuroraField({
       gl.uniform1f(uGrain, u.grain);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-      if (reduced) running = false;   // one frame is enough
+      // A still field still has to redraw when the palette underneath it
+      // changes, so remember what it drew and wake up if that moves.
+      if (reduced || u.speed === 0) {
+        stillKey = `${u.colorA}${u.colorB}${u.colorC}${u.base}${u.intensity}`;
+        running = false;
+      }
     };
     raf = requestAnimationFrame(draw);
 
-    const onVisibility = () => { running = document.visibilityState === 'visible' && !reduced; if (running) last = 0; };
+    // Anything that means nobody is looking at the field stops it dead: the
+    // tab is hidden, a sheet is covering it, or the browser dropped the GPU
+    // context out from under us.
+    let onScreen = true;
+    const shouldRun = () =>
+      document.visibilityState === 'visible'
+      && onScreen
+      && document.documentElement.dataset.overlay !== '1'
+      && !reduced;
+    const onVisibility = () => { running = shouldRun(); if (running) last = 0; };
     document.addEventListener('visibilitychange', onVisibility);
+
+    const overlayWatcher = new MutationObserver(onVisibility);
+    overlayWatcher.observe(document.documentElement, { attributes: true, attributeFilter: ['data-overlay'] });
+
+    // A palette change repaints even a still field.
+    const paletteWatcher = new MutationObserver(() => {
+      const u = uniforms.current;
+      if (stillKey && stillKey !== `${u.colorA}${u.colorB}${u.colorC}${u.base}${u.intensity}`) {
+        stillKey = '';
+        running = shouldRun() || u.speed === 0 || reduced;
+        last = 0;
+      }
+    });
+    paletteWatcher.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+    const io = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      onVisibility();
+    });
+    io.observe(canvas);
+
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      running = false;
+      cancelAnimationFrame(raf);
+      canvas.dataset.fallback = 'true';
+    };
+    canvas.addEventListener('webglcontextlost', onLost);
     if (!reduced) {
       window.addEventListener('pointermove', onPointer, { passive: true });
       window.addEventListener('pointerleave', onLeave, { passive: true });
@@ -245,6 +311,10 @@ export function AuroraField({
 
     return () => {
       cancelAnimationFrame(raf);
+      overlayWatcher.disconnect();
+      paletteWatcher.disconnect();
+      io.disconnect();
+      canvas.removeEventListener('webglcontextlost', onLost);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pointermove', onPointer);
       window.removeEventListener('pointerleave', onLeave);

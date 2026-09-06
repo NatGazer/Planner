@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { RouterProvider, useMatch, useRouter } from '@ui/lib/router';
 import { SessionProvider, useSession } from '@ui/lib/session';
-import { ThemeProvider } from '@ui/lib/theme';
+import { ThemeProvider, useTheme } from '@ui/lib/theme';
 import { ToasterProvider } from '@ui/components/Toaster';
 import { BootScreen } from '@ui/components/states';
 import { AuroraField } from '@ui/components/AuroraField';
@@ -70,10 +70,17 @@ function Gate() {
   );
 }
 
+/** The living ground. It follows the theme by re-reading the aurora tokens. */
+function Backdrop() {
+  const { resolved } = useTheme();
+  // A still frame on a phone: the atmosphere costs one draw call, once.
+  return <AuroraField themeKey={resolved} speed={0} />;
+}
+
 export function App() {
   return (
     <ThemeProvider storageKey="mm.worker.theme">
-      <AuroraField colorA="#1f7bff" colorB="#12c6a6" colorC="#6f5cff" base="#05070e" intensity={0.9} />
+      <Backdrop />
       <ToasterProvider>
         <SessionProvider>
           <RouterProvider>

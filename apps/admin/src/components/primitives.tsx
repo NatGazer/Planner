@@ -2,7 +2,7 @@ import { forwardRef, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { useCountUp, useTilt, usePrefersReducedMotion } from '@ui/anim/hooks';
-import { spring, riseIn } from '@ui/anim/motion';
+import { deckIn, riseIn, setZoomOrigin, spring } from '@ui/anim/motion';
 import { accentClass, STATUS } from '@ui/lib/status';
 import { cadence, shortDate } from '@ui/lib/format';
 import type { Completion, DueBucket, Task } from '@ui/lib/types';
@@ -21,24 +21,24 @@ export interface PanelProps {
   tone?: 'plain' | 'accent';
   className?: string;
   children: ReactNode;
-  /** Shared-element id, so the panel morphs into the screen it opens. */
-  layoutId?: string;
 }
 
+/**
+ * A dashboard panel. It deliberately does not tilt: rotating a chart or a
+ * scannable list while somebody is reading a value puts the animation
+ * directly in the way of the task. Depth here comes from the material and
+ * from the way it arrives, not from following the pointer.
+ */
 export const Panel = forwardRef<HTMLDivElement, PanelProps>(function Panel(
-  { title, subtitle, icon, action, onOpen, openLabel = 'Open', span = 6, tone = 'plain', className, children, layoutId }, ref,
+  { title, subtitle, icon, action, onOpen, openLabel = 'Open', span = 6, tone = 'plain', className, children }, ref,
 ) {
-  const tilt = useTilt({ max: 3.5, scale: 1.004 });
   return (
     <motion.section
       ref={ref}
-      layoutId={layoutId}
-      variants={riseIn}
+      variants={deckIn}
       className={`panel panel--${tone}${onOpen ? ' panel--clickable' : ''}${className ? ` ${className}` : ''}`}
-      style={{ gridColumn: `span ${span}`, ...tilt.style }}
-      {...tilt.handlers}
+      style={{ gridColumn: `span ${span}` }}
     >
-      {tilt.glare ? <motion.span className="surface__glare" style={{ '--gx': tilt.glare.x, '--gy': tilt.glare.y, opacity: tilt.glare.opacity } as never} aria-hidden="true" /> : null}
       <header className="panel__head">
         <div className="panel__heading">
           {icon ? <span className="panel__icon"><Icon name={icon} size={15} /></span> : null}
@@ -70,28 +70,27 @@ export interface StatTileProps {
   onOpen: () => void;
   index?: number;
   sparkline?: ReactNode;
-  layoutId?: string;
 }
 
 /**
  * The four numbers that matter, at the top of the overview. Each one is a door
  * into the list it counts — the whole tile is the target, not a small link.
  */
-export function StatTile({ label, value, caption, icon, tone, onOpen, index = 0, sparkline, layoutId }: StatTileProps) {
+export function StatTile({ label, value, caption, icon, tone, onOpen, index = 0, sparkline }: StatTileProps) {
   const counter = useCountUp(value, { delay: 0.16 + index * 0.06 });
-  const tilt = useTilt({ max: 7, scale: 1.02 });
+  const tilt = useTilt({ max: 4, scale: 1.012 });
   const reduced = usePrefersReducedMotion();
 
   return (
     <motion.button
       type="button"
-      layoutId={layoutId}
-      variants={riseIn}
+      variants={deckIn}
+      onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
       className={`tile tile--${tone}`}
       onClick={onOpen}
       style={tilt.style}
       {...tilt.handlers}
-      whileTap={reduced ? undefined : { scale: 0.985 }}
+      whileTap={reduced ? undefined : { scale: 0.982 }}
       transition={spring.snap}
     >
       {tilt.glare ? <motion.span className="surface__glare" style={{ '--gx': tilt.glare.x, '--gy': tilt.glare.y, opacity: tilt.glare.opacity } as never} aria-hidden="true" /> : null}
@@ -167,6 +166,11 @@ export function TaskRow({ task, today, onOpen, onReschedule, showEquipment = tru
         ) : null}
       </div>
       <div className="task-row__meta">
+        {!showRule ? null : (
+          <span className="task-row__cadence">
+            <Icon name="refresh" size={11} /> {cadence(task.rule.intervalValue, task.rule.intervalUnit)}
+          </span>
+        )}
         {hidden ? <span className="task-row__flag">Hidden — deactivated</span> : null}
         <span className="task-row__date">{shortDate(task.dueDate, today)}</span>
         <DueBadge bucket={task.due.bucket} label={task.due.label} compact />
@@ -198,7 +202,13 @@ export function CompletionRow({ completion, onOpen }: { completion: Completion; 
         <span className="completion-row__title">{completion.rule.title}</span>
         <span className="completion-row__where">
           <strong>{completion.equipment.code}</strong> {completion.equipment.name}
+          {completion.equipment.location ? <span className="completion-row__at"> · {completion.equipment.location}</span> : null}
         </span>
+      </span>
+      <span className="completion-row__note">
+        {completion.comment
+          ? <><Icon name="comment" size={12} /> {completion.comment}</>
+          : <span className="completion-row__note--none">No note left</span>}
       </span>
       <span className="completion-row__meta">
         <span className="completion-row__who">{completion.employee.name}</span>

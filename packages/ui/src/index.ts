@@ -8,6 +8,7 @@ export * from './lib/status';
 export * from './lib/useResource';
 export * from './anim/hooks';
 export * from './anim/motion';
+export * from './anim/usePullToRefresh';
 export * from './components/Icon';
 export * from './components/Button';
 export * from './components/Field';

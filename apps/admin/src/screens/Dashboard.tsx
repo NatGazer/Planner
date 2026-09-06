@@ -34,6 +34,7 @@ export function Dashboard() {
   const loadBars = useMemo(() => (data?.upcomingLoad ?? []).map((d, i) => ({
     label: d.date,
     value: d.count,
+    carried: d.carried,
     emphasis: i === 0 && d.carried > 0,
     title: i === 0 && d.carried
       ? `${shortDate(d.date, data?.today)}: ${d.count} due, including ${d.carried} overdue`
@@ -41,12 +42,12 @@ export function Dashboard() {
   })), [data]);
 
   if (dash.error && !data) {
-    return <div className="page"><ErrorState message={dash.error.message} onRetry={() => void dash.reload()} /></div>;
+    return <div className="page page--wide"><ErrorState message={dash.error.message} onRetry={() => void dash.reload()} /></div>;
   }
 
   if (!data) {
     return (
-      <div className="page">
+      <div className="page page--wide">
         <div className="page__head"><Skeleton width={280} height={30} /></div>
         <div className="grid">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} height={132} radius={20} style={{ gridColumn: 'span 3' }} />)}
@@ -61,7 +62,7 @@ export function Dashboard() {
   const pressure = s.overdue + s.dueToday;
 
   return (
-    <div className="page">
+    <div className="page page--wide">
       <motion.header
         className="page__head"
         variants={reduced ? stillContainer : listContainer(3)}
@@ -136,7 +137,7 @@ export function Dashboard() {
         <Panel
           title="The fortnight ahead"
           subtitle={pressure
-            ? `${plural(pressure, 'task')} needs attention today or sooner`
+            ? `${plural(pressure, 'task')} ${pressure === 1 ? 'needs' : 'need'} attention today or sooner`
             : 'Nothing is late — the schedule is clear'}
           icon="trend"
           span={8}
@@ -144,7 +145,11 @@ export function Dashboard() {
           openLabel="Open the task list"
         >
           <div className="workload">
-            <Bars values={loadBars} height={132} delay={0.24} onSelect={(i) => {
+            <div className="workload__scale">
+              <span>Tasks falling due each day</span>
+              <span><span className="workload__peak">{Math.max(...(data.upcomingLoad.map((d) => d.count)), 0)}</span> at the peak</span>
+            </div>
+            <Bars values={loadBars} height={168} delay={0.24} onSelect={(i) => {
               const date = data.upcomingLoad[i];
               navigate(i === 0 ? '/tasks?bucket=due-or-overdue' : `/tasks?bucket=week&on=${date.date}`);
             }} />
@@ -216,7 +221,7 @@ export function Dashboard() {
         >
           {data.attention.length ? (
             <motion.div className="stack-list" variants={reduced ? stillContainer : listContainer(data.attention.length)} initial="hidden" animate="shown">
-              {data.attention.map((task) => (
+              {data.attention.slice(0, 4).map((task) => (
                 <TaskRow key={task.id} task={task} today={data.today} dense onOpen={() => navigate(`/equipment/${task.equipment.id}`)} />
               ))}
             </motion.div>
@@ -241,7 +246,7 @@ export function Dashboard() {
         >
           {data.recentCompletions.length ? (
             <motion.div className="stack-list" variants={reduced ? stillContainer : listContainer(data.recentCompletions.length)} initial="hidden" animate="shown">
-              {data.recentCompletions.slice(0, 5).map((c) => (
+              {data.recentCompletions.slice(0, 4).map((c) => (
                 <CompletionRow key={c.id} completion={c} onOpen={() => navigate(`/history?completion=${c.id}`)} />
               ))}
             </motion.div>
@@ -288,7 +293,7 @@ export function Dashboard() {
         >
           {data.nextUp.length ? (
             <motion.div className="stack-list" variants={reduced ? stillContainer : listContainer(data.nextUp.length)} initial="hidden" animate="shown">
-              {data.nextUp.slice(0, 5).map((task) => (
+              {data.nextUp.slice(0, 6).map((task) => (
                 <TaskRow key={task.id} task={task} today={data.today} dense onOpen={() => navigate(`/equipment/${task.equipment.id}`)} />
               ))}
             </motion.div>

@@ -2,12 +2,12 @@ import { useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { RouterProvider, useMatch, useRouter } from '@ui/lib/router';
 import { SessionProvider, useSession } from '@ui/lib/session';
-import { ThemeProvider } from '@ui/lib/theme';
+import { ThemeProvider, useTheme } from '@ui/lib/theme';
 import { ToasterProvider } from '@ui/components/Toaster';
 import { BootScreen } from '@ui/components/states';
 import { AuroraField } from '@ui/components/AuroraField';
 import { usePrefersReducedMotion } from '@ui/anim/hooks';
-import { pageIn, still } from '@ui/anim/motion';
+import { pageIn, still, zoomIn } from '@ui/anim/motion';
 
 import { SignIn } from './screens/SignIn';
 import { Dashboard } from './screens/Dashboard';
@@ -41,7 +41,9 @@ function Screens() {
   // Detail views sit one level deeper, so they arrive from the right and
   // leave to the right; siblings cross-fade in place.
   const depth = useMemo(() => (path.split('/').filter(Boolean).length >= 2 ? 1 : 0), [path]);
-  const variants = reduced ? still : pageIn(depth ? 1 : 0.35);
+  // Going deeper, the screen scales up out of the card that was tapped.
+  // Moving between siblings, it slides — the two reads a person expects.
+  const variants = reduced ? still : depth ? zoomIn : pageIn(0.35);
 
   const screen = (() => {
     switch (match?.pattern) {
@@ -62,6 +64,7 @@ function Screens() {
       <motion.main
         key={match?.pattern === '/equipment/:id' || match?.pattern === '/rules/:id' ? path : (match?.pattern ?? '/')}
         className="screen"
+        style={depth && !reduced ? { transformOrigin: 'var(--ox, 50%) var(--oy, 42%)' } : undefined}
         variants={variants}
         initial="hidden"
         animate="shown"
@@ -103,15 +106,16 @@ function Authenticated() {
   );
 }
 
+/** The living ground. It follows the theme by re-reading the aurora tokens. */
+function Backdrop() {
+  const { resolved } = useTheme();
+  return <AuroraField themeKey={resolved} />;
+}
+
 export function App() {
   return (
     <ThemeProvider storageKey="mm.admin.theme">
-      <AuroraField
-        base="var-base"
-        colorA="#2f6bff"
-        colorB="#17d8bd"
-        colorC="#8a5cff"
-      />
+      <Backdrop />
       <ToasterProvider>
         <SessionProvider>
           <RouterProvider>

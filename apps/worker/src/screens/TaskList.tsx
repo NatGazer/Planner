@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useMotionValue, useTransform } from 'framer-motion';
+import { useMemo, useState } from 'react';
+import { AnimatePresence, motion, useTransform } from 'framer-motion';
 import { useRouter } from '@ui/lib/router';
 import { useResource, useRefreshOnFocus } from '@ui/lib/useResource';
 import { useSession, useSignOutOn401 } from '@ui/lib/session';
 import { useTheme } from '@ui/lib/theme';
 import { useDebounced, usePrefersReducedMotion } from '@ui/anim/hooks';
+import { usePullToRefresh } from '@ui/anim/usePullToRefresh';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
@@ -41,20 +42,10 @@ export function TaskList() {
   const actionable = (counts?.overdue ?? 0) + (counts?.today ?? 0);
 
   /* --------------------------------------------------- pull to refresh --- */
-  const pull = useMotionValue(0);
-  const pullOpacity = useTransform(pull, [0, 40, 80], [0, 0.6, 1]);
-  const pullRotate = useTransform(pull, [0, 90], [0, 320]);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const onDragEnd = useCallback(async () => {
-    if (pull.get() > 72) {
-      setRefreshing(true);
-      await list.reload();
-      setRefreshing(false);
-    }
-    pull.set(0);
-  }, [pull, list]);
+  const { ref: scrollRef, pull } = usePullToRefresh(() => list.reload());
+  const pullOpacity = useTransform(pull, [0, 34, 72], [0, 0.55, 1]);
+  const pullRotate = useTransform(pull, [0, 96], [-120, 0]);
+  const pullShift = useTransform(pull, [0, 140], [0, 70]);
 
   return (
     <div className="w-list">
@@ -71,6 +62,15 @@ export function TaskList() {
           <div className="w-head__actions">
             <button type="button" className="w-icon-btn" onClick={() => setSearching((v) => !v)} aria-label="Search">
               <Icon name={searching ? 'close' : 'search'} size={19} />
+            </button>
+            <button
+              type="button"
+              className="w-icon-btn"
+              onClick={() => void list.reload()}
+              disabled={list.refreshing}
+              aria-label="Refresh the list"
+            >
+              <Icon name="refresh" size={18} className={list.refreshing ? 'is-spinning' : undefined} />
             </button>
             <button type="button" className="w-icon-btn" onClick={toggle} aria-label="Switch appearance">
               <Icon name={resolved === 'dark' ? 'moon' : 'sun'} size={18} />
@@ -114,21 +114,12 @@ export function TaskList() {
         style={{ opacity: pullOpacity }}
         aria-hidden="true"
       >
-        <motion.span style={{ rotate: pullRotate }} className={refreshing ? 'is-spinning' : undefined}>
+        <motion.span style={{ rotate: pullRotate }} className={list.refreshing ? 'is-spinning' : undefined}>
           <Icon name="refresh" size={18} />
         </motion.span>
       </motion.div>
 
-      <motion.div
-        ref={scrollRef}
-        className="w-scroll"
-        drag={reduced ? false : 'y'}
-        dragDirectionLock
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0.42, bottom: 0 }}
-        style={{ y: pull }}
-        onDragEnd={onDragEnd}
-      >
+      <motion.div ref={scrollRef} className="w-scroll" style={{ y: pullShift }}>
         {list.error && !list.data ? (
           <ErrorState message={list.error.message} onRetry={() => void list.reload()} />
         ) : !list.data ? (
@@ -220,11 +211,15 @@ function Pill({ tone, label, value }: { tone: string; label: string; value: numb
 function TaskCard({ task, today, index, onOpen }: { task: Task; today: string; index: number; onOpen: () => void }) {
   const reduced = usePrefersReducedMotion();
   const s = STATUS[task.due.bucket];
+  // The pressure field: full width when the job is due or late, shrinking
+  // away over the following month. It is read before any of the words are.
+  const pressure = Math.max(0.06, Math.min(1, 1 - task.due.days / 30));
   return (
     <motion.button
       type="button"
       layout
       className={`w-card ${s.className} ${accentClass(task.equipment.type?.accent ?? 'aurora')}`}
+      style={{ '--pressure': pressure } as React.CSSProperties}
       onClick={onOpen}
       initial={reduced ? { opacity: 0 } : { opacity: 0, y: 22, scale: 0.97, rotateX: -6 }}
       animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
@@ -245,7 +240,7 @@ function TaskCard({ task, today, index, onOpen }: { task: Task; today: string; i
         <span className="w-card__meta">
           <span className="w-card__equipment">
             {task.equipment.type ? <Icon name={task.equipment.type.icon as IconName} size={13} /> : null}
-            {task.equipment.name}
+            <span>{task.equipment.name}</span>
           </span>
           {task.equipment.location ? (
             <span className="w-card__location"><Icon name="pin" size={12} /> {task.equipment.location}</span>

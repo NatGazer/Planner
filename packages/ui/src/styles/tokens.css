@@ -1,0 +1,218 @@
+/* ==========================================================================
+   Design tokens
+   --------------------------------------------------------------------------
+   Two rules govern this file, and everything downstream depends on them.
+
+   1. EVERY status and accent colour ships twice. `--x-ink` is measured for
+      contrast and is the only value allowed to carry text or an icon.
+      `--x-lume` is decorative — fills, glows, rims, chart marks — and is never
+      put under a letter. This is what stops a luminous interface from
+      quietly becoming an unreadable one.
+
+   2. Every translucent surface sits on an opaque `--surface-floor`. Text
+      contrast is then a fixed, measured number rather than a function of
+      whatever happens to be drifting past behind the glass.
+   ========================================================================== */
+
+:root {
+  /* -- type ------------------------------------------------------------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text',
+    'Segoe UI', Roboto, Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable Display',
+    'Segoe UI', Roboto, Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  --t-11: 0.6875rem;  --t-12: 0.75rem;   --t-13: 0.8125rem; --t-14: 0.875rem;
+  --t-15: 0.9375rem;  --t-17: 1.0625rem; --t-20: 1.25rem;   --t-24: 1.5rem;
+  --t-30: 1.875rem;   --t-40: 2.5rem;    --t-52: 3.25rem;
+
+  --w-regular: 420; --w-medium: 520; --w-semi: 620; --w-bold: 700;
+
+  /* -- rhythm ----------------------------------------------------------- */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px; --s-5: 20px;
+  --s-6: 24px; --s-7: 32px; --s-8: 40px; --s-9: 56px; --s-10: 72px;
+
+  --r-xs: 8px; --r-sm: 12px; --r-md: 16px; --r-lg: 20px; --r-xl: 26px; --r-full: 999px;
+
+  --blur-glass: 22px;
+  --blur-scrim: 10px;
+
+  /* -- z layers --------------------------------------------------------- */
+  --z-field: 0; --z-content: 1; --z-rail: 40; --z-topbar: 45;
+  --z-scrim: 90; --z-sheet: 100; --z-toast: 200;
+
+  /* -- geometry --------------------------------------------------------- */
+  --rail-w: 244px;
+  --page-max: 1500px;
+  --hit: 44px;               /* never smaller: this is a thumb, with a glove on */
+}
+
+/* ==========================================================================
+   Dark — the default. A lit case seen at night.
+   ========================================================================== */
+:root,
+:root[data-theme='dark'] {
+  --bg-void: #04060C;
+  --bg-deep: #080B14;
+
+  --surface-floor: #0F1521;          /* opaque underlay, painted first, always */
+  --surface-glass: rgba(28, 38, 57, 0.66);
+  --surface-raised: rgba(41, 54, 78, 0.80);
+  --surface-well: rgba(3, 6, 12, 0.46);
+  --surface-solid: #131A28;
+
+  --edge-light: rgba(196, 218, 255, 0.155);   /* the lit top bevel */
+  --edge-warm: rgba(255, 214, 158, 0.055);    /* dispersion, 1px under it */
+  --edge-dark: rgba(0, 0, 0, 0.44);
+  --hairline: rgba(255, 255, 255, 0.082);
+  --hairline-strong: rgba(255, 255, 255, 0.15);
+
+  --text-hi: #EDF1FA;
+  --text-mid: #A7B3C9;
+  --text-low: #77859E;
+  --text-inverse: #070A11;
+
+  /* Shadows carry a cool cast at night; the triplet is piped into rgba(). */
+  --shadow-key: 2, 5, 14;
+  --shadow-a: 0 1px 1px rgba(var(--shadow-key), 0.42), 0 3px 8px -3px rgba(var(--shadow-key), 0.5);
+  --shadow-b: 0 2px 3px rgba(var(--shadow-key), 0.42), 0 14px 26px -10px rgba(var(--shadow-key), 0.62), 0 34px 60px -32px rgba(var(--shadow-key), 0.7);
+  --shadow-c: 0 4px 6px rgba(var(--shadow-key), 0.44), 0 28px 48px -16px rgba(var(--shadow-key), 0.66), 0 70px 110px -56px rgba(var(--shadow-key), 0.78);
+
+  --brand-ink: #7FA6FF;
+  --brand-lume: #3B6BFF;
+  --brand-soft: rgba(59, 107, 255, 0.16);
+  --brand-on: #FFFFFF;
+
+  --status-overdue: #FF6B7E;
+  --status-overdue-ink: #FF8E9C;
+  --status-overdue-soft: rgba(255, 107, 126, 0.14);
+  --status-today: #FFB020;
+  --status-today-ink: #FFC862;
+  --status-today-soft: rgba(255, 176, 32, 0.14);
+  --status-soon: #38BDF8;
+  --status-soon-ink: #6FD2FF;
+  --status-soon-soft: rgba(56, 189, 248, 0.13);
+  --status-later: #64748B;
+  --status-later-ink: #93A2BA;
+  --status-later-soft: rgba(100, 116, 139, 0.16);
+  --status-ok: #2FD9A5;
+  --status-ok-ink: #57E5BA;
+  --status-ok-soft: rgba(47, 217, 165, 0.14);
+
+  --accent-aurora: #2FD9BE;  --accent-aurora-ink: #5FE7D2;  --accent-aurora-soft: rgba(47, 217, 190, 0.14);
+  --accent-ice: #45C6FF;     --accent-ice-ink: #7BD8FF;     --accent-ice-soft: rgba(69, 198, 255, 0.14);
+  --accent-cobalt: #6E8DFF;  --accent-cobalt-ink: #97ADFF;  --accent-cobalt-soft: rgba(110, 141, 255, 0.15);
+  --accent-orchid: #B981FF;  --accent-orchid-ink: #CFA6FF;  --accent-orchid-soft: rgba(185, 129, 255, 0.15);
+  --accent-ember: #FF7C5C;   --accent-ember-ink: #FF9C83;   --accent-ember-soft: rgba(255, 124, 92, 0.14);
+  --accent-sunset: #FF9F45;  --accent-sunset-ink: #FFB871;  --accent-sunset-soft: rgba(255, 159, 69, 0.14);
+  --accent-gold: #FFCE4F;    --accent-gold-ink: #FFDC85;    --accent-gold-soft: rgba(255, 206, 79, 0.14);
+  --accent-lime: #9BE548;    --accent-lime-ink: #B6EE7C;    --accent-lime-soft: rgba(155, 229, 72, 0.14);
+
+  --field-bg: rgba(6, 10, 18, 0.52);
+  --field-border: rgba(255, 255, 255, 0.11);
+  --field-border-hover: rgba(255, 255, 255, 0.2);
+  --focus-ring: rgba(127, 166, 255, 0.55);
+
+  --skeleton-a: rgba(255, 255, 255, 0.045);
+  --skeleton-b: rgba(255, 255, 255, 0.1);
+
+  --aurora-a: #1E3E8F;
+  --aurora-b: #0B6E68;
+  --aurora-c: #4A2F91;
+  --aurora-base: #04060C;
+  --aurora-intensity: 0.5;
+}
+
+/* ==========================================================================
+   Light — the same case in museum daylight. Same geometry, inverted light.
+   ========================================================================== */
+:root[data-theme='light'] {
+  --bg-void: #E7EAF1;
+  --bg-deep: #DFE4EE;
+
+  --surface-floor: #FFFFFF;
+  --surface-glass: rgba(255, 255, 255, 0.82);
+  --surface-raised: rgba(255, 255, 255, 0.95);
+  --surface-well: rgba(20, 28, 45, 0.045);
+  --surface-solid: #FFFFFF;
+
+  --edge-light: rgba(255, 255, 255, 0.95);
+  --edge-warm: rgba(255, 236, 205, 0.6);
+  --edge-dark: rgba(24, 34, 54, 0.07);
+  --hairline: rgba(20, 30, 52, 0.1);
+  --hairline-strong: rgba(20, 30, 52, 0.18);
+
+  --text-hi: #0D1320;
+  --text-mid: #4A5568;
+  --text-low: #6B7688;
+  --text-inverse: #FFFFFF;
+
+  /* Warm shadows in daylight: brown-black, never grey. */
+  --shadow-key: 62, 48, 38;
+  --shadow-a: 0 1px 1px rgba(var(--shadow-key), 0.07), 0 3px 8px -3px rgba(var(--shadow-key), 0.1);
+  --shadow-b: 0 1px 2px rgba(var(--shadow-key), 0.07), 0 12px 22px -10px rgba(var(--shadow-key), 0.16), 0 30px 54px -30px rgba(var(--shadow-key), 0.2);
+  --shadow-c: 0 2px 4px rgba(var(--shadow-key), 0.08), 0 26px 44px -16px rgba(var(--shadow-key), 0.18), 0 66px 100px -54px rgba(var(--shadow-key), 0.24);
+
+  --brand-ink: #1D46CE;
+  --brand-lume: #2E5BFF;
+  --brand-soft: rgba(46, 91, 255, 0.1);
+  --brand-on: #FFFFFF;
+
+  --status-overdue: #E03356;
+  --status-overdue-ink: #BE1338;
+  --status-overdue-soft: rgba(224, 51, 86, 0.1);
+  --status-today: #E08600;
+  --status-today-ink: #9A5B00;
+  --status-today-soft: rgba(224, 134, 0, 0.12);
+  --status-soon: #0EA5E9;
+  --status-soon-ink: #0B6E96;
+  --status-soon-soft: rgba(14, 165, 233, 0.11);
+  --status-later: #7A8598;
+  --status-later-ink: #57616F;
+  --status-later-soft: rgba(122, 133, 152, 0.13);
+  --status-ok: #0FA97C;
+  --status-ok-ink: #067354;
+  --status-ok-soft: rgba(15, 169, 124, 0.12);
+
+  --accent-aurora: #0DAE94;  --accent-aurora-ink: #077461;  --accent-aurora-soft: rgba(13, 174, 148, 0.12);
+  --accent-ice: #0C9FD8;     --accent-ice-ink: #076C95;     --accent-ice-soft: rgba(12, 159, 216, 0.12);
+  --accent-cobalt: #4467E8;  --accent-cobalt-ink: #2A45AE;  --accent-cobalt-soft: rgba(68, 103, 232, 0.12);
+  --accent-orchid: #9450E0;  --accent-orchid-ink: #6C31AE;  --accent-orchid-soft: rgba(148, 80, 224, 0.12);
+  --accent-ember: #E2553A;   --accent-ember-ink: #B03518;   --accent-ember-soft: rgba(226, 85, 58, 0.12);
+  --accent-sunset: #DE7C14;  --accent-sunset-ink: #A85806;  --accent-sunset-soft: rgba(222, 124, 20, 0.13);
+  --accent-gold: #D3A005;    --accent-gold-ink: #8E6B00;    --accent-gold-soft: rgba(211, 160, 5, 0.14);
+  --accent-lime: #63A80F;    --accent-lime-ink: #47790A;    --accent-lime-soft: rgba(99, 168, 15, 0.13);
+
+  --field-bg: rgba(255, 255, 255, 0.9);
+  --field-border: rgba(20, 30, 52, 0.16);
+  --field-border-hover: rgba(20, 30, 52, 0.3);
+  --focus-ring: rgba(46, 91, 255, 0.4);
+
+  --skeleton-a: rgba(20, 30, 52, 0.05);
+  --skeleton-b: rgba(20, 30, 52, 0.11);
+
+  --aurora-a: #C6D4F3;
+  --aurora-b: #CDE9E3;
+  --aurora-c: #D9CEF3;
+  --aurora-base: #E7EAF1;
+  --aurora-intensity: 0.62;
+}
+
+/* Accent helpers. Applying `.accent-ice` re-points the generic accent tokens,
+   so any component inside inherits that type's colour without knowing which. */
+.accent-aurora { --accent: var(--accent-aurora); --accent-ink: var(--accent-aurora-ink); --accent-soft: var(--accent-aurora-soft); }
+.accent-ice    { --accent: var(--accent-ice);    --accent-ink: var(--accent-ice-ink);    --accent-soft: var(--accent-ice-soft); }
+.accent-cobalt { --accent: var(--accent-cobalt); --accent-ink: var(--accent-cobalt-ink); --accent-soft: var(--accent-cobalt-soft); }
+.accent-orchid { --accent: var(--accent-orchid); --accent-ink: var(--accent-orchid-ink); --accent-soft: var(--accent-orchid-soft); }
+.accent-ember  { --accent: var(--accent-ember);  --accent-ink: var(--accent-ember-ink);  --accent-soft: var(--accent-ember-soft); }
+.accent-sunset { --accent: var(--accent-sunset); --accent-ink: var(--accent-sunset-ink); --accent-soft: var(--accent-sunset-soft); }
+.accent-gold   { --accent: var(--accent-gold);   --accent-ink: var(--accent-gold-ink);   --accent-soft: var(--accent-gold-soft); }
+.accent-lime   { --accent: var(--accent-lime);   --accent-ink: var(--accent-lime-ink);   --accent-soft: var(--accent-lime-soft); }
+
+:root { --accent: var(--accent-aurora); --accent-ink: var(--accent-aurora-ink); --accent-soft: var(--accent-aurora-soft); }
+
+/* Status helpers, used by rows, badges and group headers alike. */
+.is-overdue { --status: var(--status-overdue); --status-ink: var(--status-overdue-ink); --status-soft: var(--status-overdue-soft); }
+.is-today   { --status: var(--status-today);   --status-ink: var(--status-today-ink);   --status-soft: var(--status-today-soft); }
+.is-soon    { --status: var(--status-soon);    --status-ink: var(--status-soon-ink);    --status-soft: var(--status-soon-soft); }
+.is-later   { --status: var(--status-later);   --status-ink: var(--status-later-ink);   --status-soft: var(--status-later-soft); }

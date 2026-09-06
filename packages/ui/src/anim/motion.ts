@@ -35,22 +35,54 @@ export const duration = {
   slow: 0.55,
 };
 
-/** Stagger step, in seconds, for a list of n items — capped so long lists
- *  never make the reader wait for the bottom of the page. */
-export const staggerFor = (n: number, step = 0.038, budget = 0.42) =>
-  (n <= 1 ? 0 : Math.min(step, budget / (n - 1)));
+/**
+ * The stagger step, in seconds. It is deliberately constant: compressing the
+ * step so a long list finishes in a fixed window makes every long list feel
+ * different from every short one. Instead the *index* is clamped where the
+ * delay is applied (see `staggerDelay`), so the first dozen items cascade and
+ * everything after them arrives together.
+ */
+export const STAGGER_STEP = 0.042;
+export const STAGGER_CAP = 11;
+
+export const staggerFor = (n: number, step = STAGGER_STEP) => (n <= 1 ? 0 : step);
+
+/** Delay for item `i`, clamped so item 60 does not wait two seconds. */
+export const staggerDelay = (i: number, step = STAGGER_STEP) => Math.min(i, STAGGER_CAP) * step;
 
 /** A container whose children arrive one after another. */
 export const listContainer = (n: number, delayChildren = 0.04): Variants => ({
   hidden: {},
-  shown: { transition: { staggerChildren: staggerFor(n), delayChildren } },
+  shown: {
+    transition: {
+      staggerChildren: staggerFor(n),
+      delayChildren,
+      // Long lists cascade for the first dozen rows, then land together.
+      staggerDirection: 1,
+    },
+  },
 });
 
-/** The standard arrival: up, into focus, into place. */
+/**
+ * The standard arrival: up and into place.
+ *
+ * There is deliberately no `filter: blur()` here. Animating a filter
+ * re-rasterises the whole subtree every frame, and this variant is applied to
+ * every card and every list row in both apps — it would be the single most
+ * expensive thing either app does. Depth on arrival comes from the rotateX in
+ * `deckIn` instead, which is one composited matrix.
+ */
 export const riseIn: Variants = {
-  hidden: { opacity: 0, y: 16, scale: 0.985, filter: 'blur(7px)' },
-  shown: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transition: spring.glide },
-  exit: { opacity: 0, y: -8, scale: 0.99, filter: 'blur(5px)', transition: { duration: duration.quick } },
+  hidden: { opacity: 0, y: 16, scale: 0.985 },
+  shown: { opacity: 1, y: 0, scale: 1, transition: spring.glide },
+  exit: { opacity: 0, y: -8, scale: 0.99, transition: { duration: duration.quick } },
+};
+
+/** Panels arriving on the dashboard: they tip up off the deck. */
+export const deckIn: Variants = {
+  hidden: { opacity: 0, y: 18, rotateX: -5 },
+  shown: { opacity: 1, y: 0, rotateX: 0, transition: spring.settle },
+  exit: { opacity: 0, y: -10, transition: { duration: duration.quick } },
 };
 
 /** For rows in a dense list: less travel, no blur, cheaper. */
@@ -60,12 +92,44 @@ export const rowIn: Variants = {
   exit: { opacity: 0, x: -14, transition: { duration: duration.quick } },
 };
 
-/** Whole-page transitions. `direction` is +1 going deeper, -1 coming back. */
+/**
+ * Whole-screen transitions: the new screen grows out of the point you touched.
+ *
+ * `AnimatePresence mode="wait"` unmounts the old screen before the new one
+ * mounts, so a shared-element `layoutId` across routes can never pair — it
+ * would teleport. Anchoring the scale origin to the tapped element gives the
+ * same "this came from there" read with two composited properties and no
+ * measurement of a freshly-mounted route.
+ */
+export const zoomIn: Variants = {
+  hidden: { opacity: 0, scale: 0.9 },
+  shown: { opacity: 1, scale: 1, transition: spring.settle },
+  exit: { opacity: 0, scale: 0.965, transition: { duration: duration.quick, ease: ease.in } },
+};
+
+/** Lateral movement between sibling screens. */
 export const pageIn = (direction: number): Variants => ({
-  hidden: { opacity: 0, x: direction * 26, filter: 'blur(8px)', scale: 0.992 },
-  shown: { opacity: 1, x: 0, filter: 'blur(0px)', scale: 1, transition: spring.settle },
-  exit: { opacity: 0, x: direction * -20, filter: 'blur(6px)', scale: 0.994, transition: { duration: duration.quick } },
+  hidden: { opacity: 0, x: direction * 24, scale: 0.994 },
+  shown: { opacity: 1, x: 0, scale: 1, transition: spring.settle },
+  exit: { opacity: 0, x: direction * -18, scale: 0.996, transition: { duration: duration.quick } },
 });
+
+/**
+ * Record where a navigation was triggered from, so the incoming screen can
+ * scale out of it. Falls back to the middle of the viewport for keyboard
+ * activation and deep links.
+ */
+export function setZoomOrigin(el: HTMLElement | null) {
+  const root = document.documentElement;
+  if (!el) {
+    root.style.setProperty('--ox', '50%');
+    root.style.setProperty('--oy', '42%');
+    return;
+  }
+  const r = el.getBoundingClientRect();
+  root.style.setProperty('--ox', `${(((r.x + r.width / 2) / window.innerWidth) * 100).toFixed(2)}%`);
+  root.style.setProperty('--oy', `${(((r.y + r.height / 2) / window.innerHeight) * 100).toFixed(2)}%`);
+}
 
 /** Reduced-motion replacements: same names, no travel. */
 export const still: Variants = {

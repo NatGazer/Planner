@@ -4,7 +4,7 @@ import { useRouter } from '@ui/lib/router';
 import { useResource } from '@ui/lib/useResource';
 import { useSession, useSignOutOn401 } from '@ui/lib/session';
 import { usePrefersReducedMotion, useTilt } from '@ui/anim/hooks';
-import { listContainer, riseIn, spring, stillContainer } from '@ui/anim/motion';
+import { listContainer, riseIn, setZoomOrigin, spring, stillContainer } from '@ui/anim/motion';
 import { Icon, type IconName } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { Segmented, SelectField } from '@ui/components/Field';
@@ -139,6 +139,7 @@ function RuleCard({ rule, onOpen }: { rule: MaintenanceRule; onOpen: () => void 
     <motion.button
       type="button"
       className={`rule-card${rule.active ? '' : ' is-inactive'}`}
+      onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
       onClick={onOpen}
       style={tilt.style}
       {...tilt.handlers}

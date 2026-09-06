@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { Icon } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { longDate, daysBetween } from '@ui/lib/format';
-import { usePrefersReducedMotion } from '@ui/anim/hooks';
+import { usePrefersReducedMotion, useScrollLock } from '@ui/anim/hooks';
 import { spring } from '@ui/anim/motion';
 
 export interface SuccessOverlayProps {
@@ -22,6 +23,7 @@ export interface SuccessOverlayProps {
  */
 export function SuccessOverlay({ open, title, nextDue, today, onDone }: SuccessOverlayProps) {
   const reduced = usePrefersReducedMotion();
+  useScrollLock(open);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -38,7 +40,11 @@ export function SuccessOverlay({ open, title, nextDue, today, onDone }: SuccessO
 
   const inDays = nextDue && today ? daysBetween(today, nextDue) : 0;
 
-  return (
+  // Portalled to the body on purpose: the screen it is launched from carries a
+  // transform while it animates, and a transformed ancestor becomes the
+  // containing block for `position: fixed` — the overlay would be pinned to
+  // the screen's box rather than to the viewport.
+  const overlay = (
     <AnimatePresence>
       {open ? (
         <motion.div
@@ -131,4 +137,7 @@ export function SuccessOverlay({ open, title, nextDue, today, onDone }: SuccessO
       ) : null}
     </AnimatePresence>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(overlay, document.body);
 }

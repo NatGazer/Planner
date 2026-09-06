@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 type Resolved = 'dark' | 'light';
@@ -37,7 +37,10 @@ export function ThemeProvider({ children, storageKey = STORAGE_KEY }: { children
 
   const resolved: Resolved = mode === 'system' ? (systemDark ? 'dark' : 'light') : mode;
 
-  useEffect(() => {
+  // Layout effect, not effect: child components that resolve a CSS custom
+  // property on mount (the background shader does) must see the right theme
+  // on the very first frame, and child effects run before parent effects.
+  useLayoutEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = resolved;
     root.style.colorScheme = resolved;

@@ -84,7 +84,9 @@ export function EquipmentDetail({ id }: { id: string }) {
       </button>
 
       <motion.header
-        layoutId={`equipment-${equipment.id}`}
+        variants={riseIn}
+        initial="hidden"
+        animate="shown"
         className={`hero ${accentClass(equipment.type.accent)}${equipment.active ? '' : ' is-inactive'}`}
       >
         <div className="hero__main">

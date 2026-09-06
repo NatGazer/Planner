@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from '@ui/lib/router';
 import { useResource } from '@ui/lib/useResource';
@@ -37,6 +37,22 @@ export function TaskDetail({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ nextDue: string; title: string } | null>(null);
+  const [nudge, setNudge] = useState(0);
+  const checkRef = useRef<HTMLButtonElement | null>(null);
+  const captureRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * Tapping Submit before it is ready is not an error — it is a question.
+   * Answer it: shake once, scroll the missing control into view, and say which
+   * one it is. Never a dead grey button that explains nothing.
+   */
+  const promptForMissing = useCallback(() => {
+    setNudge((n) => n + 1);
+    const target = !done ? checkRef.current : captureRef.current;
+    target?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+    target?.classList.add('is-wanted');
+    setTimeout(() => target?.classList.remove('is-wanted'), 1400);
+  }, [done, reduced]);
 
   const submit = useCallback(async () => {
     if (!photo || !done || busy) return;
@@ -89,9 +105,9 @@ export function TaskDetail({ id }: { id: string }) {
   const { task, today } = detail.data;
   const s = STATUS[task.due.bucket];
   const ready = done && !!photo;
-  const missing = !done && !photo ? 'Tick the box and add a photo'
-    : !done ? 'Tick “Maintenance completed”'
-      : 'Add one photo of the work';
+  const satisfied = (done ? 1 : 0) + (photo ? 1 : 0);
+  const missing = !done ? 'Tick “Maintenance completed” first'
+    : 'Add one photo of the work';
 
   return (
     <div className={`w-detail ${accentClass(task.equipment.type?.accent ?? 'aurora')}`}>
@@ -154,6 +170,7 @@ export function TaskDetail({ id }: { id: string }) {
 
           <button
             type="button"
+            ref={checkRef}
             className={`w-check${done ? ' is-checked' : ''}`}
             onClick={() => setDone((v) => !v)}
             role="checkbox"
@@ -179,12 +196,14 @@ export function TaskDetail({ id }: { id: string }) {
             <span className="w-check__label">Maintenance completed</span>
           </button>
 
-          <PhotoCapture
-            value={photo}
-            onChange={setPhoto}
-            disabled={busy}
-            hint="One photo showing the work. It is stored with the record and only administrators can see it."
-          />
+          <div ref={captureRef}>
+            <PhotoCapture
+              value={photo}
+              onChange={setPhoto}
+              disabled={busy}
+              hint="One photo showing the work. It is stored with the record and only administrators can see it."
+            />
+          </div>
 
           <TextArea
             label="Anything to add?"
@@ -217,6 +236,7 @@ export function TaskDetail({ id }: { id: string }) {
           {!ready ? (
             <motion.p
               key="missing"
+              id="submit-state"
               className="w-submitbar__hint"
               initial={reduced ? { opacity: 0 } : { opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -226,17 +246,20 @@ export function TaskDetail({ id }: { id: string }) {
             </motion.p>
           ) : null}
         </AnimatePresence>
-        <Button
-          variant="primary"
-          size="xl"
-          block
-          loading={busy}
-          disabled={!ready}
-          onClick={() => void submit()}
-          icon={ready ? 'check' : undefined}
-        >
-          {busy ? 'Submitting…' : 'Submit completion'}
-        </Button>
+        <motion.div animate={nudge ? { x: [0, -9, 8, -5, 0] } : { x: 0 }} transition={{ duration: 0.36 }}>
+          <Button
+            variant="primary"
+            size="xl"
+            block
+            loading={busy}
+            onClick={() => (ready ? void submit() : promptForMissing())}
+            className={ready ? '' : 'is-incomplete'}
+            aria-describedby="submit-state"
+            icon={ready ? 'check' : undefined}
+          >
+            {busy ? 'Submitting…' : ready ? 'Submit completion' : `Submit — ${satisfied} of 2 ready`}
+          </Button>
+        </motion.div>
       </div>
 
       <SuccessOverlay
