@@ -43,13 +43,21 @@ export const accentVar = (accent: string) =>
 export const accentClass = (accent: string) =>
   `accent-${(ACCENTS as readonly string[]).includes(accent) ? accent : 'aurora'}`;
 
-/** A short, human summary of what is outstanding — used in headers. */
+/**
+ * A short, human summary of what is outstanding — used in headers.
+ * Always a complete phrase: a list that happens to start at "this week"
+ * should not read like a sentence with its beginning cut off.
+ */
 export function urgencySummary(counts: { overdue: number; today: number; soon: number }): string {
   const parts: string[] = [];
   if (counts.overdue) parts.push(`${counts.overdue} overdue`);
   if (counts.today) parts.push(`${counts.today} due today`);
-  if (counts.soon) parts.push(`${counts.soon} this week`);
+  if (counts.soon) parts.push(`${counts.soon} due this week`);
+
   if (!parts.length) return 'Nothing needs attention right now';
-  if (parts.length === 1) return parts[0];
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  const list = parts.length === 1
+    ? parts[0]
+    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  // Overdue leads on its own; otherwise say what the number is about.
+  return counts.overdue ? list : `Nothing is late — ${list}`;
 }
