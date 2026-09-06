@@ -60,9 +60,20 @@ function createApp({ role, db: injected = null, staticDir = null, secureCookies 
   const serveStatic = staticDir ? createStaticHandler(staticDir) : null;
 
   const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    const pathname = decodeURIComponent(url.pathname);
     try {
+      // Both of these throw on input a caller fully controls: a malformed Host
+      // header, or a bad percent-escape such as `/%zz`. Parsing them outside
+      // this try meant one unauthenticated request took the whole process
+      // down. They are the first thing inside it now.
+      let url;
+      let pathname;
+      try {
+        url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        pathname = decodeURIComponent(url.pathname);
+      } catch {
+        return send(res, 400, { error: { code: 'BAD_REQUEST', message: 'That request could not be understood.' } });
+      }
+
       if (pathname === '/api/health') {
         return send(res, 200, { ok: true, app: role, today: businessToday(config.businessTimezone), timezone: config.businessTimezone });
       }
@@ -78,6 +89,13 @@ function createApp({ role, db: injected = null, staticDir = null, secureCookies 
     } catch (err) {
       return sendError(res, err);
     }
+  });
+
+  // A request the HTTP parser itself rejects never reaches the handler above.
+  server.on('clientError', (err, socket) => {
+    if (!socket.writable || socket.destroyed) return;
+    const status = err.code === 'HPE_HEADER_OVERFLOW' ? '431 Request Header Fields Too Large' : '400 Bad Request';
+    socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
   });
 
   server.on('close', () => { if (!injected) db.close(); });

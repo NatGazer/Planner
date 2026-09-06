@@ -280,3 +280,25 @@ test('one employee cannot fill the disk with unsubmitted drafts', async () => {
   // The most recent upload is always the one kept — it is the one being used.
   assert.equal(db.get('SELECT COUNT(*) AS n FROM photos WHERE id = ?', [ids[ids.length - 1]]).n, 1);
 });
+
+test('a malformed request is answered, and does not take the server with it', async () => {
+  const net = require('node:net');
+  const raw = (line) => new Promise((resolve) => {
+    const socket = net.connect(workerPort, '127.0.0.1', () => {
+      socket.write(`${line}\r\nHost: localhost\r\nConnection: close\r\n\r\n`);
+    });
+    let data = '';
+    socket.on('data', (c) => { data += c; });
+    socket.on('close', () => resolve(data.split('\r\n')[0] || ''));
+    socket.on('error', () => resolve('SOCKET ERROR'));
+  });
+
+  // A bad percent-escape: `decodeURIComponent` throws on this.
+  assert.match(await raw('GET /%zz HTTP/1.1'), /^HTTP\/1\.1 400/);
+  assert.match(await raw('GET /api/%E0%A4%A HTTP/1.1'), /^HTTP\/1\.1 400/);
+
+  // And the server is still there afterwards, which is the whole point.
+  const health = await call(workerPort, '/api/health');
+  assert.equal(health.status, 200);
+  assert.equal((await health.json()).ok, true);
+});

@@ -32,6 +32,19 @@ server.listen(port, () => {
   );
 });
 
+/**
+ * A backstop, not a licence. Every request is already wrapped, but a process
+ * that keeps a maintenance schedule should not disappear because one caller
+ * found an edge nobody anticipated. Anything reaching here is a bug and says
+ * so loudly in the log.
+ */
+process.on('uncaughtException', (err) => {
+  process.stderr.write(`\n[uncaught] ${err?.stack || err}\n`);
+});
+process.on('unhandledRejection', (reason) => {
+  process.stderr.write(`\n[unhandled rejection] ${reason?.stack || reason}\n`);
+});
+
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 500).unref(); });
 }
