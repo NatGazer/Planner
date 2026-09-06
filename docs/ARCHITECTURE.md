@@ -15,8 +15,9 @@ worker account at the admin app's sign-in, so no admin-origin session is ever
 issued to a worker.
 
 Both processes open the same SQLite file. WAL mode plus `BEGIN IMMEDIATE` on
-every transaction makes that safe, and the test suite proves it with four real
-OS processes racing on one task.
+every transaction makes that safe, and the test suite proves it in the shape
+that actually ships: three separate server processes, six employees, one task —
+one completion, five "already completed", and exactly one next occurrence.
 
 ## The database boundary
 

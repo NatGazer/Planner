@@ -45,7 +45,7 @@ want to watch two people race for the same job.
 npm install          # front-end dependencies (the server needs none)
 npm run dev          # both API servers and both Vite dev servers, one terminal
 npm run build        # rebuild both apps
-npm test             # 66 tests
+npm test             # 67 tests
 npm run seed:reset   # wipe and rebuild the demo estate
 ```
 
