@@ -18,7 +18,7 @@ fs.mkdirSync(staging, { recursive: true });
 
 const INCLUDE = [
   'README.md', 'package.json', 'package-lock.json', 'tsconfig.base.json', '.nvmrc', '.gitignore',
-  'docs', 'server', 'apps', 'packages', 'scripts', '.data',
+  'docs', 'server', 'apps', 'packages', 'scripts', 'tools', '.data',
 ];
 const SKIP = new Set(['node_modules', '.git', '.vite', 'coverage']);
 

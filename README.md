@@ -70,6 +70,7 @@ server/           No third-party dependencies at all.
 apps/admin/       React + Vite
 apps/worker/      React + Vite
 packages/ui/      Shared design system, animation toolkit, API client
+tools/            Contrast audit, performance trace, end-to-end flows
 docs/
 ```
 
