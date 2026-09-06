@@ -92,7 +92,7 @@ POST   /api/admin/rules                 { typeId, title, instructions?, interval
 PATCH  /api/admin/rules/:id
 POST   /api/admin/rules/:id/archive
 
-GET    /api/admin/history?equipmentId=&employeeId=&typeId=&from=&to=&search=&limit=&offset=
+GET    /api/admin/history?equipmentId=&ruleId=&employeeId=&typeId=&from=&to=&search=&limit=&offset=
 GET    /api/admin/completions/:id
 GET    /api/admin/activity?limit=
 GET    /api/admin/employees

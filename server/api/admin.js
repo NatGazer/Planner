@@ -159,7 +159,7 @@ function register(router, ctx) {
       today: t,
       rule,
       tasks: queries.outstandingTasks(db, { today: t, ruleId: params.id, includeHidden: true }),
-      history: queries.completionHistory(db, { limit: 60 }).items.filter((c) => c.rule.id === params.id),
+      history: queries.completionHistory(db, { ruleId: params.id, limit: 100 }).items,
       activity: audit.list(db, { entity: 'maintenance_rule', entityId: params.id, limit: 50 }),
     });
   });
@@ -182,6 +182,7 @@ function register(router, ctx) {
     const q = url.searchParams;
     const result = queries.completionHistory(db, {
       equipmentId: q.get('equipmentId') || null,
+      ruleId: q.get('ruleId') || null,
       employeeId: q.get('employeeId') || null,
       typeId: q.get('typeId') || null,
       from: isValidDate(q.get('from')) ? q.get('from') : null,

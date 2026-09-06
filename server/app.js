@@ -71,12 +71,16 @@ function createApp({ role, db: injected = null, staticDir = null, secureCookies 
   return { server, db, router, ctx, role };
 }
 
-/** Boot-time housekeeping: expire stale sessions, heal any schedule gaps. */
+/**
+ * Boot-time housekeeping: expire stale sessions, discard photo drafts nobody
+ * ever submitted, and heal any gap in the schedule.
+ */
 function warmUp(db) {
   const today = businessToday(config.businessTimezone);
   sessions.purgeExpired(db);
+  const swept = require('./storage/photo-store.js').sweepAbandoned(db);
   const opened = db.transaction((tx) => sched.reconcileSchedules(tx, { today }));
-  return { today, opened: opened.length };
+  return { today, opened: opened.length, swept };
 }
 
 const defaultStaticDir = (role) => path.join(__dirname, '..', 'apps', role, 'dist');

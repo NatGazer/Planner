@@ -4,7 +4,7 @@ import { useRouter } from '@ui/lib/router';
 import { useResource } from '@ui/lib/useResource';
 import { useSession, useSignOutOn401 } from '@ui/lib/session';
 import { usePrefersReducedMotion, useTilt } from '@ui/anim/hooks';
-import { listContainer, riseIn, spring, stillContainer } from '@ui/anim/motion';
+import { listContainer, riseIn, setZoomOrigin, spring, stillContainer } from '@ui/anim/motion';
 import { Icon, TYPE_ICONS, type IconName } from '@ui/components/Icon';
 import { Button } from '@ui/components/Button';
 import { Sheet } from '@ui/components/Sheet';
@@ -112,14 +112,18 @@ function TypeCard({ type, onEdit, onEquipment, onRules }: {
         </button>
       </header>
       <div className="type-card__stats">
-        <motion.button type="button" className="type-card__stat" onClick={onEquipment} whileTap={reduced ? undefined : { scale: 0.96 }}>
+        <motion.button type="button" className="type-card__stat" onClick={onEquipment}
+          onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
+          whileTap={reduced ? undefined : { scale: 0.96 }}>
           <span className="type-card__stat-value">{type.activeEquipmentCount}</span>
           <span className="type-card__stat-label">in service</span>
           {type.equipmentCount !== type.activeEquipmentCount ? (
             <span className="type-card__stat-note">{type.equipmentCount - type.activeEquipmentCount} deactivated</span>
           ) : null}
         </motion.button>
-        <motion.button type="button" className="type-card__stat" onClick={onRules} whileTap={reduced ? undefined : { scale: 0.96 }}>
+        <motion.button type="button" className="type-card__stat" onClick={onRules}
+          onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
+          whileTap={reduced ? undefined : { scale: 0.96 }}>
           <span className="type-card__stat-value">{type.activeRuleCount}</span>
           <span className="type-card__stat-label">{type.activeRuleCount === 1 ? 'maintenance task' : 'maintenance tasks'}</span>
           {type.ruleCount !== type.activeRuleCount ? (

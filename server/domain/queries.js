@@ -112,10 +112,11 @@ function completionShape(row) {
   };
 }
 
-function completionHistory(db, { equipmentId = null, employeeId = null, typeId = null, from = null, to = null, search = null, limit = 200, offset = 0 } = {}) {
+function completionHistory(db, { equipmentId = null, ruleId = null, employeeId = null, typeId = null, from = null, to = null, search = null, limit = 200, offset = 0 } = {}) {
   const where = [];
   const params = [];
   if (equipmentId) { where.push('c.snap_equipment_id = ?'); params.push(equipmentId); }
+  if (ruleId) { where.push('c.snap_rule_id = ?'); params.push(ruleId); }
   if (employeeId) { where.push('c.employee_id = ?'); params.push(employeeId); }
   if (typeId) { where.push('c.snap_type_id = ?'); params.push(typeId); }
   if (from) { where.push('c.completed_on >= ?'); params.push(from); }

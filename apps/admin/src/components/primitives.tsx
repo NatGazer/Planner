@@ -48,13 +48,25 @@ export const Panel = forwardRef<HTMLDivElement, PanelProps>(function Panel(
           </div>
         </div>
         {action ?? (onOpen ? (
-          <button type="button" className="panel__open" onClick={onOpen}>
+          <button type="button" className="panel__open" onClick={onOpen} onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}>
             {openLabel} <Icon name="arrowRight" size={14} />
           </button>
         ) : null)}
       </header>
       <div className="panel__body">{children}</div>
-      {onOpen ? <button type="button" className="panel__hitbox" onClick={onOpen} aria-label={`${openLabel}: ${title}`} /> : null}
+      {/* The whole panel is clickable, but it is not a second tab stop: the
+          visible "Open" control in the header is the one keyboard and screen
+          reader users get, and this is a pointer convenience over the top. */}
+      {onOpen ? (
+        <button
+          type="button"
+          className="panel__hitbox"
+          onClick={onOpen}
+          onPointerDown={(e) => setZoomOrigin(e.currentTarget as HTMLElement)}
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      ) : null}
     </motion.section>
   );
 });

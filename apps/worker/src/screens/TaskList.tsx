@@ -136,7 +136,9 @@ export function TaskList() {
           />
         ) : (
           groups.map((group) => {
-            const collapsed = group.bucket === 'later' && !showLater;
+            // Nothing pressing? Then "Later" is the whole list, and collapsing
+            // it would leave the worker staring at an empty screen.
+            const collapsed = group.bucket === 'later' && !showLater && groups.length > 1;
             return (
               <section key={group.bucket} className={`w-group ${group.style.className}`}>
                 <header className="w-group__head">

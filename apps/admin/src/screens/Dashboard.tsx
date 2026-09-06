@@ -180,8 +180,8 @@ export function Dashboard() {
 
         {/* ------------------------------------------------------ on-time rate */}
         <Panel
-          title="Completed on time"
-          subtitle="Last thirty days"
+          title="On-time rate"
+          subtitle="Completed by the due date, last thirty days"
           icon="checkCircle"
           span={4}
           onOpen={go('/history')}

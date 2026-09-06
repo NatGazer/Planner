@@ -740,7 +740,11 @@ button.bar:hover { outline: 1px solid var(--hairline-strong); outline-offset: 1p
    ========================================================================== */
 
 .stack-list { display: grid; gap: var(--s-2); }
-.form-grid { display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.form-grid {
+  display: grid; gap: var(--s-4);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: start;   /* a field with a hint must not stretch its neighbour */
+}
 .form-error { font-size: var(--t-13); color: var(--status-overdue-ink); font-weight: var(--w-medium); }
 .text-overdue { color: var(--status-overdue-ink); font-weight: var(--w-semi); }
 

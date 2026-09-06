@@ -64,4 +64,17 @@ function discardUnclaimed(db, photoId) {
   return true;
 }
 
-module.exports = { put, open, discardUnclaimed, assertAcceptable };
+/**
+ * Sweep drafts that were uploaded but never submitted — a worker who took a
+ * photo and then walked away. Runs at boot; a day's grace is far longer than
+ * any real completion takes.
+ */
+function sweepAbandoned(db, { olderThanHours = 24 } = {}) {
+  const cutoff = new Date(Date.now() - olderThanHours * 3600 * 1000).toISOString();
+  const stale = db.all('SELECT id FROM photos WHERE claimed = 0 AND uploaded_at < ?', [cutoff]);
+  let removed = 0;
+  for (const row of stale) if (discardUnclaimed(db, row.id)) removed += 1;
+  return removed;
+}
+
+module.exports = { put, open, discardUnclaimed, sweepAbandoned, assertAcceptable };

@@ -182,3 +182,28 @@ test('duplicating equipment gives a new identifier and a fresh schedule, never c
   assert.ok(copyTasks.length > 0, 'a schedule of its own');
   assert.equal(queries.completionHistory(db, { equipmentId: e1.id }).total, historyOfOriginal, 'the original is untouched');
 });
+
+test('completion history can be filtered to one maintenance task', () => {
+  const { rA } = box.fixture;
+  const all = queries.completionHistory(db, {}).total;
+  const forRule = queries.completionHistory(db, { ruleId: rA.id });
+  assert.ok(forRule.total > 0, 'that rule has completions');
+  assert.ok(forRule.total < all, 'and it is a subset of everything');
+  assert.ok(forRule.items.every((c) => c.rule.id === rA.id));
+});
+
+test('an abandoned photo draft is swept, a claimed one never is', () => {
+  const store = require('../storage/photo-store.js');
+  const fresh = makePhoto(db, worker.id, 9);
+  const stale = makePhoto(db, worker.id, 10);
+  db.run('UPDATE photos SET uploaded_at = ? WHERE id = ?', ['2020-01-01T00:00:00.000Z', stale.id]);
+
+  const claimed = db.get('SELECT * FROM photos WHERE claimed = 1 LIMIT 1');
+  db.run('UPDATE photos SET uploaded_at = ? WHERE id = ?', ['2020-01-01T00:00:00.000Z', claimed.id]);
+
+  const removed = store.sweepAbandoned(db);
+  assert.equal(removed, 1, 'only the stale unclaimed draft');
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM photos WHERE id = ?', [stale.id]).n, 0);
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM photos WHERE id = ?', [fresh.id]).n, 1, 'a recent draft is left alone');
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM photos WHERE id = ?', [claimed.id]).n, 1, 'a claimed photo is never swept');
+});
