@@ -368,7 +368,7 @@
 .task-row {
   position: relative;
   display: flex; align-items: center; gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
+  padding: var(--s-3) var(--s-4) var(--s-3) calc(var(--s-4) - 3px);
   border-radius: var(--r-md);
   background: var(--surface-well);
   box-shadow: inset 0 0 0 1px var(--hairline);
@@ -383,11 +383,12 @@
 }
 .task-row:hover { box-shadow: inset 0 0 0 1px var(--hairline-strong); }
 .task-row__pip {
-  position: relative;
-  flex: none; width: 3px; align-self: stretch;
-  min-height: 26px;
-  border-radius: 3px;
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
   background: var(--status, var(--status-later));
+  pointer-events: none;
 }
 .task-row.is-overdue .task-row__pip { box-shadow: 0 0 12px -1px var(--status-overdue); }
 .task-row__main { position: relative; flex: 1; min-width: 0; }
@@ -429,7 +430,7 @@
 }
 .task-row__action:hover { color: var(--text-hi); background: var(--surface-glass); }
 .task-row--hidden { opacity: 0.55; }
-.task-row--dense { padding: 9px var(--s-3); gap: var(--s-2); }
+.task-row--dense { padding: 9px var(--s-3) 9px calc(var(--s-3) + 3px); gap: var(--s-2); }
 .task-row--dense .task-row__title {
   font-size: var(--t-13);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -926,12 +927,71 @@
   .navbar .nav-item.is-active .nav-item__indicator::after { display: none; }
 }
 
-@media (max-width: 620px) {
-  .grid__tiles { grid-template-columns: 1fr; }
+/* ==========================================================================
+   Phone. The admin app is built for a desk, but it has to be usable from a
+   pocket — a supervisor checking the overdue list on the floor. Rows stop
+   being wide two-column layouts and become stacked blocks.
+   ========================================================================== */
+
+@media (max-width: 680px) {
+  .page { padding: var(--s-3) var(--s-3) var(--s-8); gap: var(--s-4); }
+  .page__head { align-items: flex-start; }
+  .page__head-actions { width: 100%; }
+  .page__title { font-size: var(--t-24); }
+
+  .topbar { padding: var(--s-2) var(--s-3); gap: var(--s-2); }
+  .topbar__today { font-size: var(--t-12); }
+  .topbar__zone { font-size: var(--t-11); }
+  .account__meta { display: none; }
+  .account__button { padding: 3px; }
+  .account__menu { width: min(260px, calc(100vw - var(--s-6))); }
+
+  .filterbar__row { gap: var(--s-2); }
+  .filterbar__row .field,
+  .filterbar__row .search { flex: 1 1 100%; }
+  .filterbar__row--dates .field { flex: 1 1 40%; }
+  .filterbar__quick { margin-left: 0; width: 100%; }
+
+  /* Rows become blocks: identity first, then the schedule facts under it. */
+  .task-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding: var(--s-3);
+    row-gap: var(--s-2);
+  }
+  .task-row { padding: var(--s-3) var(--s-3) var(--s-3) calc(var(--s-3) + 4px); }
+  .task-row__main { flex: 1 1 100%; order: 1; }
+  .task-row__title { white-space: normal; font-size: var(--t-14); }
+  .task-row__equipment { flex-wrap: wrap; }
+  .task-row__meta { order: 2; flex: 1 1 100%; flex-wrap: wrap; gap: var(--s-2); }
+  .task-row--dense .task-row__title { white-space: normal; }
+  .task-row--dense .task-row__date { display: inline; }
+  .task-row__action { margin-left: auto; }
+
+  .completion-row { flex-wrap: wrap; row-gap: var(--s-2); }
+  .completion-row__main { flex: 1 1 auto; }
+  .completion-row__note { flex: 1 1 100%; padding-left: 0; border-left: 0; white-space: normal; }
+  .completion-row__meta { flex: none; max-width: none; justify-items: start; }
+
+  .hero { padding: var(--s-4); }
+  .hero__main { flex-direction: column; }
+  .hero__title { font-size: var(--t-20); }
   .hero__stats { gap: var(--s-4); }
+  .hero__actions .btn { flex: 1 1 auto; }
+
+  .grid__tiles { grid-template-columns: 1fr; }
+  .tile { min-height: 108px; }
+  .tile__value { font-size: var(--t-40); }
   .card-grid { grid-template-columns: 1fr; }
   .rule-group__body { grid-template-columns: 1fr; }
+  .type-card__stats { grid-template-columns: 1fr 1fr; }
+  .workload__legend { gap: var(--s-3); }
+  .ontime { gap: var(--s-4); }
+
   .sheet--sm, .sheet--md, .sheet--lg { max-width: none; }
   .sheet-root--center { align-items: end; padding: 0; }
   .sheet-root--center .sheet { border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 94dvh; }
+  .sheet__header, .sheet__body, .sheet__footer { padding-left: var(--s-4); padding-right: var(--s-4); }
+  .form-grid { grid-template-columns: 1fr; }
+  .completion-detail { grid-template-columns: 1fr; }
 }

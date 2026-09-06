@@ -6,6 +6,7 @@ import { useSession, useSignOutOn401 } from '@ui/lib/session';
 import { Icon } from '@ui/components/Icon';
 import { Bars, Ring, Sparkline, Stack } from '@ui/components/charts';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
+import { Button } from '@ui/components/Button';
 import { useCountUp, usePrefersReducedMotion } from '@ui/anim/hooks';
 import { listContainer, riseIn, stillContainer } from '@ui/anim/motion';
 import { accentClass, urgencySummary } from '@ui/lib/status';
@@ -144,6 +145,19 @@ export function Dashboard() {
           onOpen={go('/tasks')}
           openLabel="Open the task list"
         >
+          {s.outstanding === 0 ? (
+            <EmptyState
+              icon={s.totalEquipment ? 'checkCircle' : 'sparkle'}
+              tone={s.totalEquipment ? 'good' : 'calm'}
+              title={s.totalEquipment ? 'Nothing is scheduled' : 'Nothing set up yet'}
+              body={s.totalEquipment
+                ? 'Every item is either deactivated or has no active maintenance task. Add one and a schedule opens here.'
+                : 'Start with an equipment type, give it the maintenance it needs, then add the physical items. Each one gets its own schedule.'}
+              action={<Button variant="primary" icon="plus" onClick={go(s.totalEquipment ? '/rules' : '/types')}>
+                {s.totalEquipment ? 'Add a maintenance task' : 'Create the first type'}
+              </Button>}
+            />
+          ) : (
           <div className="workload">
             <div className="workload__scale">
               <span>Tasks falling due each day</span>
@@ -176,6 +190,7 @@ export function Dashboard() {
               <LegendDot tone="later" label="Later" value={s.later} />
             </div>
           </div>
+          )}
         </Panel>
 
         {/* ------------------------------------------------------ on-time rate */}
