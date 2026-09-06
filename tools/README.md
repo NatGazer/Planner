@@ -15,6 +15,7 @@ node tools/a11y.mjs          # contrast on real composited pixels, both themes
 node tools/perf.mjs /tmp     # frame timings and layout counts under load
 node tools/flow.mjs /tmp shot.png   # a worker completion, end to end
 node tools/failure.mjs /tmp shot.png # the same with the network cut mid-submit
+node tools/tilt.mjs /tmp     # read back the actual 3D transform on a tile
 node tools/package.mjs       # build the deliverable archive
 ```
 
@@ -27,6 +28,10 @@ This is what caught the light theme sitting at 3.81:1.
 performance domain, reporting frame times, **layout entries** and style
 recalculation. The layout count is the number that matters: zero during a
 scroll means the interface is pure compositing.
+
+**`tilt.mjs`** hovers a stat tile and reads back the computed transform, so the
+3D claim is a measured `matrix3d` with real rotation terms and a value plane
+sitting 18px in front of the card face — not a figure of speech.
 
 **`flow.mjs` / `failure.mjs`** complete a real task with a real photo upload,
 and then do it again with the connection cut mid-submission — asserting the
