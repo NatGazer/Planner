@@ -159,8 +159,11 @@ export function TaskRow({ task, today, onOpen, onReschedule, showEquipment = tru
   const s = STATUS[task.due.bucket];
   const hidden = !task.equipment.active || !task.rule.active;
   return (
+    /* No `layout` here on purpose: an administrator's list can run to
+       hundreds of rows, and a layout animation measures every one of them on
+       every render. The entrance variant and the exit animation give the
+       movement that matters without the measurement. */
     <motion.div
-      layout="position"
       variants={riseIn}
       className={`task-row ${s.className}${dense ? ' task-row--dense' : ''}${hidden ? ' task-row--hidden' : ''}`}
     >
@@ -202,7 +205,6 @@ export function CompletionRow({ completion, onOpen }: { completion: Completion; 
   return (
     <motion.button
       type="button"
-      layout="position"
       variants={riseIn}
       className={`completion-row${completion.onTime ? ' is-ontime' : ' is-late'}`}
       onClick={onOpen}

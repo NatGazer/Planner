@@ -3,25 +3,55 @@ const { AppError } = require('../domain/errors.js');
 
 const MAX_JSON = 1 * 1024 * 1024;
 
+/**
+ * Read a request body, refusing anything over `limit`.
+ *
+ * On refusal the stream is paused and drained rather than destroyed:
+ * destroying the socket kills the response with it, so the client gets a
+ * connection reset instead of the 413 it is meant to show the person. The
+ * remainder is discarded without being buffered, so an oversized upload still
+ * costs no memory.
+ */
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
-    req.on('data', (c) => {
+    let refused = false;
+
+    const onData = (c) => {
+      if (refused) return;                       // discard the rest, buffer nothing
       size += c.length;
-      if (size > limit) { reject(new AppError('PAYLOAD_TOO_LARGE', 'That upload is too large.', 413)); req.destroy(); return; }
+      if (size > limit) {
+        refused = true;
+        chunks.length = 0;
+        reject(new AppError('PAYLOAD_TOO_LARGE', 'That upload is too large.', 413));
+        return;
+      }
       chunks.push(c);
-    });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
+    };
+
+    req.on('data', onData);
+    req.on('end', () => { if (!refused) resolve(Buffer.concat(chunks)); });
+    req.on('aborted', () => { if (!refused) reject(new AppError('ABORTED', 'The upload did not finish.', 400)); });
+    req.on('error', (err) => { if (!refused) reject(err); });
   });
 }
 
+/**
+ * Always resolves to a plain object. `JSON.parse` happily returns null, a
+ * number or a string, and every handler downstream then reads a property off
+ * it — which is a TypeError and a 500 for what is really a bad request.
+ */
 async function readJson(req) {
   const buf = await readBody(req, MAX_JSON);
   if (!buf.length) return {};
-  try { return JSON.parse(buf.toString('utf8')); }
+  let parsed;
+  try { parsed = JSON.parse(buf.toString('utf8')); }
   catch { throw new AppError('BAD_JSON', 'The request body was not valid JSON.', 400); }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new AppError('BAD_JSON', 'The request body must be a JSON object.', 400);
+  }
+  return parsed;
 }
 
 function send(res, status, payload, headers = {}) {
@@ -36,7 +66,15 @@ function send(res, status, payload, headers = {}) {
 }
 
 function sendError(res, err) {
-  if (err instanceof AppError) return send(res, err.status, err.toJSON());
+  if (err instanceof AppError) {
+    const headers = err.status === 429 && err.detail?.retryAfterSeconds
+      ? { 'retry-after': String(err.detail.retryAfterSeconds) }
+      : {};
+    // A refused upload leaves unread bytes on the wire; say so and hang up
+    // cleanly rather than letting the client stream into a closed handler.
+    if (err.status === 413) headers.connection = 'close';
+    return send(res, err.status, err.toJSON(), headers);
+  }
   // eslint-disable-next-line no-console
   console.error('[unhandled]', err);
   return send(res, 500, { error: { code: 'INTERNAL', message: 'Something went wrong on our side. Please try again.' } });

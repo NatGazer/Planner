@@ -48,7 +48,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setTimezone(r.timezone);
       setStatus('signed-in');
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Could not reach the server. Check your connection and try again.';
+      const message = err instanceof ApiError
+        ? err.message
+        : 'Could not reach the server. Check your connection and try again.';
       setError(message);
       throw err;
     }

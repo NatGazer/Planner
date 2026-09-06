@@ -1,8 +1,9 @@
 'use strict';
 const { newToken } = require('../domain/ids.js');
 const { nowInstant } = require('../domain/time.js');
-const { verifyPassword } = require('./passwords.js');
-const { unauthorized, forbidden } = require('../domain/errors.js');
+const { verifyPassword, burnEquivalentTime } = require('./passwords.js');
+const throttle = require('./throttle.js');
+const { AppError, unauthorized, forbidden } = require('../domain/errors.js');
 const config = require('../config.js');
 
 const SESSION_COOKIE = 'mm_session';
@@ -11,12 +12,31 @@ function shapeEmployee(e) {
   return { id: e.id, email: e.email, name: e.display_name, role: e.role, active: !!e.active };
 }
 
-function signIn(db, { email, password, userAgent }) {
+async function signIn(db, { email, password, userAgent, address = 'local' }) {
+  const gate = throttle.check(address, email);
+  if (gate.blocked) {
+    throw new AppError(
+      'TOO_MANY_ATTEMPTS',
+      'Too many sign-in attempts. Wait a few minutes and try again.',
+      429,
+      { retryAfterSeconds: gate.retryAfterSeconds },
+    );
+  }
+
   const employee = db.get('SELECT * FROM employees WHERE lower(email) = lower(?)', [String(email || '').trim()]);
-  // Same failure for unknown address and wrong password: no account enumeration.
-  if (!employee || !employee.active || !verifyPassword(password, employee.password_hash)) {
+
+  // Unknown address, deactivated account and wrong password must be
+  // indistinguishable — in the message AND in how long the answer takes. An
+  // absent account still pays for one scrypt verification against a decoy.
+  const ok = employee && employee.active
+    ? await verifyPassword(password, employee.password_hash)
+    : await burnEquivalentTime(password);
+
+  if (!ok) {
+    throttle.recordFailure(address, email);
     throw unauthorized('That email and password do not match.');
   }
+  throttle.clear(address, email);
   const token = newToken();
   const issued = new Date();
   const expires = new Date(issued.getTime() + config.sessionTtlHours * 3600 * 1000);

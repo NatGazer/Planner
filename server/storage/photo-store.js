@@ -31,9 +31,23 @@ function assertAcceptable(mimeType, byteSize) {
   }
 }
 
-/** Persist bytes and register the reference. Returns the photo row. */
+/**
+ * Persist bytes and register the reference.
+ *
+ * An employee only ever needs one unsubmitted photo at a time. Capping the
+ * drafts they may hold stops an authenticated account — or a phone stuck in a
+ * retry loop — from filling the disk, and the oldest drafts are discarded to
+ * make room rather than the upload being refused.
+ */
 function put(db, { bytes, mimeType, uploaderId }) {
   assertAcceptable(mimeType, bytes.length);
+
+  const drafts = db.all(
+    'SELECT id FROM photos WHERE uploaded_by = ? AND claimed = 0 ORDER BY uploaded_at ASC',
+    [uploaderId],
+  );
+  const overBy = drafts.length - (config.maxDraftPhotosPerEmployee - 1);
+  for (let i = 0; i < overBy; i += 1) discardUnclaimed(db, drafts[i].id);
   const id = newId('pho');
   const checksum = crypto.createHash('sha256').update(bytes).digest('hex');
   const key = `${id}${EXT[mimeType] || '.bin'}`;

@@ -16,7 +16,7 @@ const config = require('./config.js');
  * the outer half of the permission story. The inner half is the per-request
  * role check inside every handler.
  */
-function createApp({ role, db: injected = null, staticDir = null, secureCookies = false } = {}) {
+function createApp({ role, db: injected = null, staticDir = null, secureCookies = config.secureCookies } = {}) {
   if (role !== 'admin' && role !== 'worker') throw new Error(`Unknown app role: ${role}`);
 
   const db = injected || createConnector(config);
@@ -31,6 +31,19 @@ function createApp({ role, db: injected = null, staticDir = null, secureCookies 
       const auth = String(req.headers.authorization || '');
       if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
       return parseCookies(req.headers.cookie)[sessions.SESSION_COOKIE] || null;
+    },
+    /**
+     * The caller's address, for throttling only. `x-forwarded-for` is trusted
+     * solely when TRUST_PROXY is set, because behind no proxy it is a header
+     * the caller writes themselves — and an attacker who can forge the key
+     * they are throttled on is not throttled at all.
+     */
+    addressOf(req) {
+      if (process.env.TRUST_PROXY === '1') {
+        const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+        if (fwd) return fwd;
+      }
+      return req.socket?.remoteAddress || 'unknown';
     },
     actorOf(req) {
       if (req.__actorResolved) return req.__actor;

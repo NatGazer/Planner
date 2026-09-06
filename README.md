@@ -114,4 +114,7 @@ every photo, a worker sees only their own.
 | `MAINTENANCE_DATA_DIR` | `./.data` | Database and photos |
 | `MAINTENANCE_DB_CONNECTOR` | — | Path to your own connector module |
 | `MAX_PHOTO_BYTES` | `12582912` | 12 MB |
+| `MAX_DRAFT_PHOTOS` | `6` | Unsubmitted photos one employee may hold |
 | `SESSION_TTL_HOURS` | `336` | Two weeks |
+| `SECURE_COOKIES` | off | Set to `1` when serving over TLS |
+| `TRUST_PROXY` | off | Set to `1` only behind a proxy that sets `x-forwarded-for` |

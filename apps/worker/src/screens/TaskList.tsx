@@ -217,9 +217,11 @@ function TaskCard({ task, today, index, onOpen }: { task: Task; today: string; i
   // away over the following month. It is read before any of the words are.
   const pressure = Math.max(0.06, Math.min(1, 1 - task.due.days / 30));
   return (
+    /* Deliberately not a `layout` animation: this list is the most
+       performance-sensitive surface in either app, and `layout` measures every
+       card on every render. The entrance variant carries the movement. */
     <motion.button
       type="button"
-      layout
       className={`w-card ${s.className} ${accentClass(task.equipment.type?.accent ?? 'aurora')}`}
       style={{ '--pressure': pressure } as React.CSSProperties}
       onClick={onOpen}

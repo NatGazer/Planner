@@ -110,3 +110,26 @@ reports `tasksOpened` so the interface can say what just happened.
 `PATCH /api/admin/rules/:id` with a new interval affects only occurrences
 generated after the next completion. Pending due dates do not move; use
 `reschedule` for that, which is audited.
+
+## Sign-in protection
+
+Sign-in is throttled on the pair (client address, email): eight failures in
+fifteen minutes locks that pair, and thirty failures locks the address across
+all accounts. A throttled request answers **429 `TOO_MANY_ATTEMPTS`** with a
+`Retry-After` header, and it refuses the *correct* password too — otherwise the
+lock would be a way to test passwords faster than the limit allows. A
+successful sign-in clears that person's slate.
+
+Unknown addresses, deactivated accounts and wrong passwords are
+indistinguishable in the response *and in how long it takes*: an address with
+no account still pays for one scrypt verification against a decoy hash, so
+latency is not an account-enumeration oracle. scrypt runs asynchronously on the
+thread pool, so a burst of attempts queues rather than freezing the server.
+
+`x-forwarded-for` is trusted only when `TRUST_PROXY=1` is set. Behind no proxy
+it is a header the caller writes themselves, and an attacker who can choose the
+key they are throttled on is not throttled at all.
+
+Set `SECURE_COOKIES=1` when serving over TLS. It is off by default only because
+the bundled setup is plain http on localhost, where a `Secure` cookie is
+discarded and nobody can sign in at all.

@@ -197,3 +197,86 @@ test('business data survives a restart because it lives in the database', async 
   assert.ok(reopened.get('SELECT COUNT(*) AS n FROM maintenance_tasks').n > 0);
   reopened.close();
 });
+
+test('an unknown address costs the same time as a known one', async () => {
+  const throttle = require('../auth/throttle.js');
+  throttle.reset();
+  const time = async (email) => {
+    const t0 = process.hrtime.bigint();
+    await signIn(adminPort, email, 'definitely-not-the-password');
+    return Number(process.hrtime.bigint() - t0) / 1e6;
+  };
+  // Warm the thread pool so the first call does not carry startup cost.
+  await time('warmup@test.example');
+  const known = await time('ana@test.example');
+  const unknown = await time('nobody-at-all@test.example');
+  const ratio = Math.max(known, unknown) / Math.max(1, Math.min(known, unknown));
+  assert.ok(ratio < 3,
+    `latency must not reveal whether an account exists (known ${known.toFixed(1)}ms, unknown ${unknown.toFixed(1)}ms)`);
+  throttle.reset();
+});
+
+test('repeated failures are throttled, and a Retry-After is given', async () => {
+  const throttle = require('../auth/throttle.js');
+  throttle.reset();
+  let last;
+  for (let i = 0; i < throttle.MAX_PER_PAIR + 1; i += 1) {
+    last = await signIn(adminPort, 'ana@test.example', 'wrong-again');
+  }
+  assert.equal(last.res.status, 429);
+  assert.equal(last.body.error.code, 'TOO_MANY_ATTEMPTS');
+  assert.ok(Number(last.res.headers.get('retry-after')) > 0);
+
+  // The correct password is refused too while the throttle holds — otherwise
+  // it would be a way to test passwords faster than the limit allows.
+  const good = await signIn(adminPort, 'ana@test.example', 'admin1234');
+  assert.equal(good.res.status, 429);
+
+  throttle.reset();
+  const after = await signIn(adminPort, 'ana@test.example', 'admin1234');
+  assert.equal(after.res.status, 200);
+});
+
+test('an oversized upload gets a 413, not a dropped connection', async () => {
+  const { cookie } = await signIn(workerPort, 'wilma@test.example', 'worker1234');
+  const huge = Buffer.alloc(box.config.maxPhotoBytes + 256 * 1024, 0x41);
+  const form = new FormData();
+  form.append('photo', new Blob([huge], { type: 'image/png' }), 'big.png');
+  const res = await call(workerPort, '/api/photos', { method: 'POST', headers: { cookie }, body: form });
+  assert.equal(res.status, 413);
+  assert.equal((await res.json()).error.code, 'PAYLOAD_TOO_LARGE');
+});
+
+test('a JSON body that is not an object is a 400, never a 500', async () => {
+  const { cookie } = await signIn(workerPort, 'wilma@test.example', 'worker1234');
+  for (const body of ['null', '42', '"a string"', '[1,2,3]', 'true']) {
+    const res = await call(workerPort, '/api/worker/tasks/anything/complete', {
+      method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body,
+    });
+    assert.equal(res.status, 400, `body ${body} must be a bad request`);
+    assert.equal((await res.json()).error.code, 'BAD_JSON');
+  }
+  const admin = await signIn(adminPort, 'ana@test.example', 'admin1234');
+  const res = await call(adminPort, '/api/admin/equipment', {
+    method: 'POST', headers: { cookie: admin.cookie, 'content-type': 'application/json' }, body: 'null',
+  });
+  assert.equal(res.status, 400);
+});
+
+test('one employee cannot fill the disk with unsubmitted drafts', async () => {
+  const { cookie } = await signIn(workerPort, 'winona@test.example', 'worker1234');
+  const png = require('../db/png.js').encodePNG(8, 8, () => [30, 40, 50]);
+  const ids = [];
+  for (let i = 0; i < box.config.maxDraftPhotosPerEmployee + 4; i += 1) {
+    const form = new FormData();
+    form.append('photo', new Blob([png], { type: 'image/png' }), `p${i}.png`);
+    const r = await call(workerPort, '/api/photos', { method: 'POST', headers: { cookie }, body: form });
+    assert.equal(r.status, 201);
+    ids.push((await r.json()).photoId);
+  }
+  const winona = db.get('SELECT id FROM employees WHERE email = ?', ['winona@test.example']);
+  const held = db.get('SELECT COUNT(*) AS n FROM photos WHERE uploaded_by = ? AND claimed = 0', [winona.id]).n;
+  assert.equal(held, box.config.maxDraftPhotosPerEmployee, 'the cap holds');
+  // The most recent upload is always the one kept — it is the one being used.
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM photos WHERE id = ?', [ids[ids.length - 1]]).n, 1);
+});

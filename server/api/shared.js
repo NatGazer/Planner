@@ -18,7 +18,12 @@ function register(router, ctx) {
 
   router.post('/api/auth/sign-in', async (req, res) => {
     const body = await readJson(req);
-    const result = sessions.signIn(db, { email: body.email, password: body.password, userAgent: req.headers['user-agent'] });
+    const result = await sessions.signIn(db, {
+      email: body.email,
+      password: body.password,
+      userAgent: req.headers['user-agent'],
+      address: ctx.addressOf(req),
+    });
     // This origin serves exactly one app. An account for the other role is
     // rejected here rather than being handed a session it cannot use.
     if (appRole === 'admin' && result.employee.role !== 'admin') {
