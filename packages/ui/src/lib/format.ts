@@ -94,7 +94,8 @@ export function relative(iso: string, now = Date.now()): string {
   if (days < 30) return days === 1 ? 'yesterday' : `${days} days ago`;
   const months = Math.round(days / 30);
   if (months < 12) return months === 1 ? 'last month' : `${months} months ago`;
-  return `${Math.round(months / 12)} year${months >= 24 ? 's' : ''} ago`;
+  const years = Math.round(months / 12);
+  return `${years} year${years === 1 ? '' : 's'} ago`;
 }
 
 /** 'every 3 months' / 'every day' — the way a person says it. */
@@ -110,7 +111,12 @@ export function plural(n: number, one: string, many = `${one}s`): string {
 
 /** Today's calendar date shifted by n days, for date-input defaults. */
 export function shiftDate(iso: string, days: number): string {
+  // Callers pass `today` straight from a resource that may not have loaded
+  // yet. Returning '' keeps an empty date input empty, instead of writing
+  // 'NaN-NaN-NaN' into it and leaving it stuck that way.
+  if (!iso) return '';
   const { y, m, d } = parts(iso);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return '';
   const dt = new Date(Date.UTC(y, m - 1, d + days));
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
 }

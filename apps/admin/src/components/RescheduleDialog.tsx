@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sheet } from '@ui/components/Sheet';
 import { Button } from '@ui/components/Button';
 import { TextArea, TextField } from '@ui/components/Field';
@@ -26,6 +26,12 @@ export function RescheduleDialog({ task, today, onClose, onDone }: RescheduleDia
   const [dueDate, setDueDate] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // The dialog stays mounted between openings, so a date and a reason typed
+  // for one task would otherwise still be sitting there for the next one —
+  // a pre-filled form that quietly moves the wrong occurrence. Every opening
+  // starts blank, whether the last one was saved or cancelled.
+  useEffect(() => { setDueDate(''); setReason(''); }, [task?.id]);
 
   const current = task?.dueDate ?? '';
   const value = dueDate || current;

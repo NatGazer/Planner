@@ -121,7 +121,7 @@
   border-radius: 50%;
   font-size: var(--t-12); font-weight: var(--w-bold); letter-spacing: 0.02em;
   color: var(--brand-on);
-  background: linear-gradient(150deg, var(--brand-ink), var(--brand-lume));
+  background: linear-gradient(150deg, var(--chip-brand-a), var(--chip-brand-b));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 .account__meta { display: grid; text-align: left; line-height: 1.2; }
@@ -825,7 +825,7 @@
   border-left: 2px solid var(--accent-aurora);
 }
 .completion-detail__comment-label { display: inline-flex; align-items: center; gap: 5px; font-size: var(--t-11); color: var(--text-low); text-transform: uppercase; letter-spacing: 0.05em; }
-.completion-detail__comment p { font-size: var(--t-14); line-height: 1.55; }
+.completion-detail__comment p { font-size: var(--t-14); line-height: 1.55; overflow-wrap: anywhere; }
 .completion-detail__nocomment { font-size: var(--t-13); color: var(--text-low); font-style: italic; }
 .completion-detail__instructions summary {
   font-size: var(--t-13); color: var(--text-mid); cursor: pointer;

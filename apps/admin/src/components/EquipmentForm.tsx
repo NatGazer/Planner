@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Sheet } from '@ui/components/Sheet';
 import { Button } from '@ui/components/Button';
 import { SelectField, Switch, TextField } from '@ui/components/Field';
@@ -38,17 +38,41 @@ export function EquipmentForm({ open, onClose, onSaved, types, rules, today, exi
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
 
+  /**
+   * Fill the form once per opening, and *only* then. The deliberate omission
+   * from the dependency list is `types`/`today`: those arrive from a live
+   * fetch that can land a second after the sheet opens, and re-running this
+   * effect would wipe out whatever has been typed in the meantime. Their
+   * latest values are read through a ref instead.
+   */
+  const latest = useRef({ types, today });
+  latest.current = { types, today };
+
   useEffect(() => {
     if (!open) return;
+    const { types: t, today: d } = latest.current;
     setCode(existing?.code ?? '');
     setName(existing?.name ?? '');
-    setTypeId(existing?.type.id ?? defaultTypeId ?? types[0]?.id ?? '');
+    setTypeId(existing?.type.id ?? defaultTypeId ?? t[0]?.id ?? '');
     setLocation(existing?.location ?? '');
     setActive(existing ? existing.active : true);
     setUseCustomDue(false);
-    setFirstDueDate(shiftDate(today, 7));
+    setFirstDueDate(shiftDate(d, 7));
     setError(null);
-  }, [open, existing, defaultTypeId, types, today]);
+  }, [open, existing, defaultTypeId]);
+
+  // A type could not be pre-selected because the list had not arrived yet.
+  // Adopt a default the moment it does — without touching anything else.
+  useEffect(() => {
+    if (!open || typeId || !types.length) return;
+    setTypeId(defaultTypeId ?? types[0].id);
+  }, [open, typeId, types, defaultTypeId]);
+
+  // Same for the suggested first due date: filled in only while untouched.
+  useEffect(() => {
+    if (!open || firstDueDate || !today) return;
+    setFirstDueDate(shiftDate(today, 7));
+  }, [open, firstDueDate, today]);
 
   const inherited = useMemo(
     () => rules.filter((r) => r.type.id === typeId && r.active),
@@ -123,7 +147,7 @@ export function EquipmentForm({ open, onClose, onSaved, types, rules, today, exi
           value={typeId} onChange={(e) => setTypeId(e.target.value)}
           options={types.map((t) => ({ value: t.id, label: t.name }))}
           hint={existing && existing.type.id !== typeId
-            ? 'Changing the type retires pending work for rules that no longer apply and opens the new type’s schedule. Completed history is never touched.'
+            ? 'Changing the type opens the new type’s schedule. Pending work under rules that no longer apply goes dormant at its own date — nothing is deleted, and moving the item back restores it. History is never touched.'
             : 'The item inherits every maintenance task defined for this type.'}
           error={error?.field === 'typeId' ? error.message : null}
         />

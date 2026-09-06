@@ -52,10 +52,27 @@ export function RouterProvider({ children }: { children: ReactNode }) {
     window.history.back();
   }, []);
 
-  const value = useMemo<RouterValue>(() => {
-    const [path, search = ''] = href.split('?');
-    return { path, params: {}, query: new URLSearchParams(search), navigate, back, depth };
-  }, [href, navigate, back, depth]);
+  const [path, search] = useMemo(() => {
+    const [p, s = ''] = href.split('?');
+    return [p, s];
+  }, [href]);
+
+  /**
+   * `query` is memoised on the search string alone, deliberately.
+   *
+   * Screens run effects keyed on `query` — "the URL says ?new=1, open the
+   * sheet". If a new URLSearchParams were built whenever anything else in the
+   * router changed, a plain `navigate` would bump `depth`, hand those effects
+   * a fresh object identity while the href still carried the old parameter,
+   * and re-run them: dismissing that sheet would immediately reopen it,
+   * because clearing the parameter from the URL is a later task.
+   */
+  const query = useMemo(() => new URLSearchParams(search), [search]);
+
+  const value = useMemo<RouterValue>(
+    () => ({ path, params: {}, query, navigate, back, depth }),
+    [path, query, navigate, back, depth],
+  );
 
   return <RouterContext.Provider value={value}>{children}</RouterContext.Provider>;
 }

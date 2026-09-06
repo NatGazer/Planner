@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Sheet } from '@ui/components/Sheet';
 import { Button } from '@ui/components/Button';
 import { SelectField, Switch, TextArea, TextField } from '@ui/components/Field';
@@ -52,18 +52,37 @@ export function RuleForm({ open, onClose, onSaved, types, today, existing, defau
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
 
+  /**
+   * Fill once per opening. `types`/`today` are read through a ref rather than
+   * depended on, because they arrive from a fetch that can land while somebody
+   * is already typing — and re-running this would erase their work.
+   */
+  const latest = useRef({ types, today });
+  latest.current = { types, today };
+
   useEffect(() => {
     if (!open) return;
-    setTypeId(existing?.type.id ?? defaultTypeId ?? types[0]?.id ?? '');
+    const { types: t, today: d } = latest.current;
+    setTypeId(existing?.type.id ?? defaultTypeId ?? t[0]?.id ?? '');
     setTitle(existing?.title ?? '');
     setInstructions(existing?.instructions ?? '');
     setIntervalValue(existing?.intervalValue ?? 3);
     setIntervalUnit(existing?.intervalUnit ?? 'months');
     setActive(existing ? existing.active : true);
     setUseCustomDue(false);
-    setFirstDueDate(shiftDate(today, 7));
+    setFirstDueDate(shiftDate(d, 7));
     setError(null);
-  }, [open, existing, defaultTypeId, types, today]);
+  }, [open, existing, defaultTypeId]);
+
+  useEffect(() => {
+    if (!open || typeId || !types.length) return;
+    setTypeId(defaultTypeId ?? types[0].id);
+  }, [open, typeId, types, defaultTypeId]);
+
+  useEffect(() => {
+    if (!open || firstDueDate || !today) return;
+    setFirstDueDate(shiftDate(today, 7));
+  }, [open, firstDueDate, today]);
 
   const type = useMemo(() => types.find((t) => t.id === typeId) ?? null, [types, typeId]);
   const frequencyChanged = !!existing && (existing.intervalValue !== intervalValue || existing.intervalUnit !== intervalUnit);
