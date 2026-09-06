@@ -216,8 +216,10 @@ a { color: var(--brand-ink); }
 .btn--sm.btn--icon-only { width: 34px; }
 
 .btn--primary {
+  /* The sheen is deliberately slight: a heavier one lightens the top of the
+     button past the point where a white label still clears AA on it. */
   background: linear-gradient(180deg,
-    color-mix(in srgb, var(--brand-lume) 92%, white) 0%,
+    color-mix(in srgb, var(--brand-lume) 97%, white) 0%,
     var(--brand-lume) 58%,
     color-mix(in srgb, var(--brand-lume) 88%, black) 100%);
   color: var(--brand-on);

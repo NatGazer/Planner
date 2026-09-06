@@ -207,3 +207,24 @@ test('an abandoned photo draft is swept, a claimed one never is', () => {
   assert.equal(db.get('SELECT COUNT(*) AS n FROM photos WHERE id = ?', [fresh.id]).n, 1, 'a recent draft is left alone');
   assert.equal(db.get('SELECT COUNT(*) AS n FROM photos WHERE id = ?', [claimed.id]).n, 1, 'a claimed photo is never swept');
 });
+
+test('the dashboard per-type overdue count excludes deactivated rules', () => {
+  const type = catalog.createType(db, { name: 'Chiller unit' }, admin);
+  const live = catalog.createRule(db, { typeId: type.id, title: 'Live check', intervalValue: 1, intervalUnit: 'days' }, admin, { today: TODAY }).rule;
+  const dormant = catalog.createRule(db, { typeId: type.id, title: 'Dormant check', intervalValue: 1, intervalUnit: 'days' }, admin, { today: TODAY }).rule;
+  const item = catalog.createEquipment(db, { code: 'CH-COUNT', name: 'Counting chiller', typeId: type.id }, admin, { today: TODAY }).equipment;
+
+  db.run(`UPDATE maintenance_tasks SET due_date = '2020-01-01' WHERE equipment_id = ?`, [item.id]);
+  const both = queries.dashboard(db, { today: TODAY }).byType.find((t) => t.id === type.id);
+  assert.equal(both.overdue, 2);
+
+  catalog.updateRule(db, dormant.id, { active: false }, admin);
+  const one = queries.dashboard(db, { today: TODAY }).byType.find((t) => t.id === type.id);
+  assert.equal(one.overdue, 1, 'the deactivated rule stops counting');
+
+  // ...and it agrees with the headline figure, which is the whole point.
+  const outstanding = queries.outstandingTasks(db, { today: TODAY })
+    .filter((t) => t.equipment.id === item.id && t.due.bucket === 'overdue');
+  assert.equal(outstanding.length, 1);
+  assert.equal(outstanding[0].rule.id, live.id);
+});

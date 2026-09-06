@@ -208,10 +208,13 @@ function dashboard(db, { today }) {
     return { date: d, count: (loadMap.get(d) || 0) + (i === 0 ? overdueCarry : 0), carried: i === 0 ? overdueCarry : 0 };
   });
 
+  // The rule join is a LEFT JOIN, so a task under a deactivated rule still has
+  // a row — `r.id IS NOT NULL` is what actually excludes it. Without that test
+  // this count disagrees with every other overdue figure on the screen.
   const byType = db.all(`
     SELECT ty.id, ty.name, ty.accent, ty.icon,
            COUNT(DISTINCT e.id) AS equipment_count,
-           SUM(CASE WHEN t.id IS NOT NULL AND t.due_date < ? THEN 1 ELSE 0 END) AS overdue
+           SUM(CASE WHEN t.id IS NOT NULL AND r.id IS NOT NULL AND t.due_date < ? THEN 1 ELSE 0 END) AS overdue
       FROM equipment_types ty
       LEFT JOIN equipment e ON e.type_id = ty.id AND e.archived = 0 AND e.active = 1
       LEFT JOIN maintenance_tasks t

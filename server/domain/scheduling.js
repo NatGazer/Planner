@@ -126,8 +126,13 @@ function retireOrphanedPendingTasks(db, equipment, actor) {
       action: 'task.retired',
       entity: 'maintenance_task',
       entityId: o.id,
-      summary: `Retired pending "${o.rule_title}" on ${equipment.code} — no longer applies after the type change`,
-      detail: { dueDate: o.due_date, ruleId: o.rule_id },
+      summary: `Retired pending "${o.rule_title}" on ${equipment.code}, which was due ${o.due_date} — the rule no longer applies after the type change`,
+      detail: {
+        dueDate: o.due_date,
+        ruleId: o.rule_id,
+        ruleTitle: o.rule_title,
+        note: 'The date is recorded here because the occurrence itself is gone. Completed history for this rule is untouched.',
+      },
     });
   }
   return orphans.length;

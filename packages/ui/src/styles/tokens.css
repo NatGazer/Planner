@@ -79,7 +79,7 @@
   --shadow-c: 0 4px 6px rgba(var(--shadow-key), 0.44), 0 28px 48px -16px rgba(var(--shadow-key), 0.66), 0 70px 110px -56px rgba(var(--shadow-key), 0.78);
 
   --brand-ink: #7FA6FF;
-  --brand-lume: #3B6BFF;
+  --brand-lume: #3260F5;   /* white label on this is 5.1:1 */
   --brand-soft: rgba(59, 107, 255, 0.16);
   --brand-on: #FFFFFF;
 
@@ -143,8 +143,9 @@
   --hairline-strong: rgba(20, 30, 52, 0.18);
 
   --text-hi: #0D1320;
-  --text-mid: #4A5568;
-  --text-low: #6B7688;
+  --text-mid: #46536A;   /*  8.6:1 on white */
+  --text-low: #57627A;   /*  6.1:1 on white — measured on composited pixels,
+                             not on the token pair, because these sit on cards */
   --text-inverse: #FFFFFF;
 
   /* Warm shadows in daylight: brown-black, never grey. */
@@ -154,7 +155,7 @@
   --shadow-c: 0 2px 4px rgba(var(--shadow-key), 0.08), 0 26px 44px -16px rgba(var(--shadow-key), 0.18), 0 66px 100px -54px rgba(var(--shadow-key), 0.24);
 
   --brand-ink: #1D46CE;
-  --brand-lume: #2E5BFF;
+  --brand-lume: #2952F0;   /* white label on this is 5.9:1 */
   --brand-soft: rgba(46, 91, 255, 0.1);
   --brand-on: #FFFFFF;
 
