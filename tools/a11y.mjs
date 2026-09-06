@@ -91,11 +91,17 @@ function score({ b64, runs }) {
 
 const focusProbe = `(() => [...document.querySelectorAll('a[href],button:not([disabled]),input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(e => e.offsetParent !== null).length)()`;
 
-async function audit(url, theme, email, password, routes) {
+async function audit(url, theme, email, password, routes, lang = 'en') {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, colorScheme: theme });
   const page = await ctx.newPage();
   await page.goto(url, { waitUntil: 'networkidle' });
-  await page.evaluate((t) => localStorage.setItem(location.port === '4310' ? 'mm.admin.theme' : 'mm.worker.theme', t), theme);
+  await page.evaluate(([t, l]) => {
+    const admin = location.port === '4310';
+    localStorage.setItem(admin ? 'mm.admin.theme' : 'mm.worker.theme', t);
+    // Longer languages wrap differently, which can land a run of text on a
+    // different background from the one it sat on in English.
+    localStorage.setItem(admin ? 'mm.admin.lang' : 'mm.worker.lang', l);
+  }, [theme, lang]);
   await page.reload({ waitUntil: 'networkidle' });
   await page.fill('input[type=email]', email);
   await page.fill('input[type=password]', password);
@@ -112,19 +118,23 @@ async function audit(url, theme, email, password, routes) {
     const plate = await page.screenshot({ type: 'png' });
     await page.evaluate(restore);
     const scored = await page.evaluate(score, { b64: plate.toString('base64'), runs });
-    results.push({ route: r, theme, low: scored.bad, all: scored.all, runs: runs.length, tabStops });
+    results.push({ route: r, theme, lang, low: scored.bad, all: scored.all, runs: runs.length, tabStops });
   }
   await ctx.close();
   return results;
 }
 
 const routes = ['/', '/tasks', '/equipment', '/rules', '/types', '/history', '/activity'];
-const all = [
-  ...await audit('http://localhost:4310/', 'dark', 'ana@fieldworks.example', 'admin1234', routes),
-  ...await audit('http://localhost:4310/', 'light', 'ana@fieldworks.example', 'admin1234', routes),
-  ...await audit('http://localhost:4320/', 'dark', 'tomas@fieldworks.example', 'worker1234', ['/']),
-  ...await audit('http://localhost:4320/', 'light', 'tomas@fieldworks.example', 'worker1234', ['/']),
-];
+const LANGS = (process.env.A11Y_LANGS ?? 'en,pt,fr').split(',');
+const all = [];
+for (const lang of LANGS) {
+  all.push(
+    ...await audit('http://localhost:4310/', 'dark', 'ana@fieldworks.example', 'admin1234', routes, lang),
+    ...await audit('http://localhost:4310/', 'light', 'ana@fieldworks.example', 'admin1234', routes, lang),
+    ...await audit('http://localhost:4320/', 'dark', 'tomas@fieldworks.example', 'worker1234', ['/'], lang),
+    ...await audit('http://localhost:4320/', 'light', 'tomas@fieldworks.example', 'worker1234', ['/'], lang),
+  );
+}
 await browser.close();
 
 // `--worst` reports the tightest reading per class instead of only the misses,
@@ -150,8 +160,8 @@ for (const r of all) {
   measured += r.runs;
   if (!r.low.length) continue;
   failures += r.low.length;
-  console.log(`\n${r.theme} ${r.route}  (${r.runs} text runs, ${r.tabStops} tab stops)`);
+  console.log(`\n${r.lang} ${r.theme} ${r.route}  (${r.runs} text runs, ${r.tabStops} tab stops)`);
   for (const l of r.low) console.log(`  ${l.ratio} < ${l.need}  ${l.size}px  .${l.cls}  "${l.text}"  ${l.color} on ${l.on}`);
 }
-console.log(`\n${measured} text runs measured on composited pixels — ${failures || 'no'} below AA`);
+console.log(`\n${measured} text runs measured on composited pixels across ${LANGS.length} language${LANGS.length === 1 ? '' : 's'} — ${failures || 'no'} below AA`);
 process.exit(failures ? 1 : 0);

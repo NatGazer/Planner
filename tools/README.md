@@ -16,6 +16,7 @@ node tools/perf.mjs /tmp     # frame timings and layout counts under load
 node tools/flow.mjs /tmp shot.png   # a worker completion, end to end
 node tools/failure.mjs /tmp shot.png # the same with the network cut mid-submit
 node tools/regress.mjs       # interaction bugs a unit test cannot see
+node tools/i18n.mjs          # unkeyed strings, and overflow in all three languages
 node tools/tilt.mjs /tmp     # read back the actual 3D transform on a tile
 node tools/bigcheck.mjs /tmp # render an estate far larger than the demo
 node tools/package.mjs       # build the deliverable archive
@@ -45,6 +46,14 @@ sitting 18px in front of the card face — not a figure of speech.
 500 maintenance tasks, 10,000 pending occurrences — and reports how long the
 dashboard and the list take. It is what showed the outstanding counts being
 silently capped by the page size.
+
+**`i18n.mjs`** does two things. Statically, it finds user-visible text still
+written as a literal — a string that never reaches `t()` can never be translated
+and nothing at runtime will say so. Then it loads every screen in all three
+languages at 402px and 1440px and measures what overflows: Portuguese and
+French run 15-30% longer than English, so a header that fits in English is no
+evidence that anything fits. Deliberate ellipsis truncation is not counted; a
+box that was never meant to scroll, escaping its bounds, is.
 
 **`regress.mjs`** re-runs three interaction bugs found by using the app rather
 than reading it: a deep-linked sheet that reopened itself on every dismissal, a

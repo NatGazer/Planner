@@ -74,8 +74,14 @@ async function signedIn(context) {
   await openRow(0);
   const firstRowDate = await page.locator('.sheet input[type=date]').inputValue();
   const carriedReason = await page.locator('.sheet textarea').inputValue();
-  const shownIsOwn = firstRowDate !== picked && firstRowDate !== secondRowDate;
-  check('reschedule dialog shows the task it was opened on', shownIsOwn, `picked=${picked} now=${firstRowDate}`);
+  // Not "different from the other row": two tasks may honestly fall due on the
+  // same day. What must never happen is the *picked* date following you over,
+  // and the tell is the submit button being live on a form nobody has touched.
+  const moveDisabled = await page.locator('.sheet__footer .btn').last().isDisabled();
+  check('reschedule dialog shows the task it was opened on', firstRowDate !== picked,
+    `picked=${picked} now=${firstRowDate} (other row was ${secondRowDate})`);
+  check('reschedule dialog opens with nothing to submit', moveDisabled,
+    `the move button was live on an untouched form`);
   check('reschedule dialog carries no reason across tasks', carriedReason === '', `reason="${carriedReason}"`);
   await ctx.close();
 }

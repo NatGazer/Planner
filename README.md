@@ -39,13 +39,26 @@ device toolbar — it is designed for a thumb, not a mouse.
 Two more demo workers exist (`mariana@` and `kwame@`, same password) if you
 want to watch two people race for the same job.
 
+### Languages
+
+Both apps run in **English, European Portuguese and French**, switchable at any
+time with no reload. The picker sits on the sign-in screen of both apps — so
+somebody who reads no English can change it before signing in — and afterwards
+in the admin account menu, and in the worker's account sheet as full-width rows
+labelled in their own language.
+
+Dates, plurals and even the weekday initials on the workload chart follow the
+choice; so do the errors the server sends. [docs/I18N.md](docs/I18N.md) explains
+how, and why a missing translation is a build failure rather than a surprise in
+production.
+
 ### Working on it
 
 ```bash
 npm install          # front-end dependencies (the server needs none)
 npm run dev          # both API servers and both Vite dev servers, one terminal
 npm run build        # rebuild both apps
-npm test             # 67 tests
+npm test             # 70 tests
 npm run seed:reset   # wipe and rebuild the demo estate
 ```
 

@@ -32,18 +32,26 @@ And the tertiary text tokens were set against the base surface rather than the
 3.6 and 4.4:1. Both text tiers and four status inks were re-set from the worst
 surface each one actually meets.
 
-The current reading, 1176 runs across both apps, both themes, every screen:
+The current reading — 3,558 runs across both apps, both themes, every screen,
+**in all three languages**, because a longer word wraps differently and can land
+a run of text on a different background from the one it sat on in English:
 
 | | dark | light |
 |---|---|---|
-| **tightest reading anywhere** | **4.62 : 1** | **5.06 : 1** |
-| secondary text on a card | 5.43 : 1 | 5.72 : 1 |
-| tertiary text on a row | 5.20 : 1 | 5.66 : 1 |
+| **tightest reading anywhere** | **4.65 : 1** | **5.06 : 1** |
+| tertiary text on a tinted type card | 4.66 : 1 | 5.17 : 1 |
 | status ink on its own tinted row | 5.22 : 1 | 5.26 : 1 |
 | white on the primary button | 5.04 : 1 | 5.84 : 1 |
 | initials on the avatar | 5.68 : 1 | 6.62 : 1 |
 
-Nothing is below AA. `node tools/a11y.mjs --worst` prints that table.
+Nothing is below AA. `node tools/a11y.mjs --worst` prints that table, and
+`A11Y_LANGS=en` narrows it to one language when iterating.
+
+The tightest pair is worth naming, because it is the one the token system was
+originally wrong about: tertiary text on the *warmest* type card — a gold
+accent at rgb(58, 58, 52), lighter than any of the blue-tinted surfaces the
+palette was tuned against. `--text-low` is now set from that card, and reads
+7 : 1 on the deck behind it.
 
 ## The material
 
