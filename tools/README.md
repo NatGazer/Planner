@@ -33,3 +33,9 @@ and then do it again with the connection cut mid-submission — asserting the
 checkbox, photo and comment all survive and the retry succeeds.
 
 `servers.sh` restarts both apps; `package.mjs` builds the shipped archive.
+
+Two more paths worth re-checking by hand, both verified during the build: a
+session that ends while a completion form is open (the worker is told, and
+handed the sign-in rather than left on a screen that can never succeed), and a
+brand-new database with nothing in it (every list, chart and count survives it,
+and the overview says what to set up first).

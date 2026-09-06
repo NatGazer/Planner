@@ -63,8 +63,16 @@ export function TaskDetail({ id }: { id: string }) {
       const result = await workerApi.complete(id, { photoId: photo.photoId, comment: comment.trim() || undefined });
       setSuccess({ nextDue: result.nextTask.dueDate, title: detail.data?.task.rule.title ?? 'Maintenance' });
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Could not reach the server. The job is still open — try again.';
+      const expired = err instanceof ApiError && err.status === 401;
+      const message = expired
+        ? 'Your session has ended. Sign in again and the job will still be here.'
+        : err instanceof ApiError
+          ? err.message
+          : 'Could not reach the server. The job is still open — try again.';
       setFailure(message);
+      // A session that ended mid-form leaves the worker on a screen that can
+      // never succeed. Say so, let them read it, then hand them the sign-in.
+      if (expired) setTimeout(() => { void signOut(); }, 2200);
       // Bring the reason into view: it sits above a sticky submit bar, and an
       // explanation nobody can see is the same as no explanation.
       requestAnimationFrame(() => {
@@ -77,7 +85,7 @@ export function TaskDetail({ id }: { id: string }) {
     } finally {
       setBusy(false);
     }
-  }, [photo, done, busy, id, comment, detail.data, toaster, navigate, reduced]);
+  }, [photo, done, busy, id, comment, detail.data, toaster, navigate, reduced, signOut]);
 
   if (detail.error && !detail.data) {
     return (
