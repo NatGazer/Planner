@@ -98,3 +98,20 @@ export function bytes(n: number): string {
   if (n < 1048576) return `${(n / 1024).toFixed(0)} KB`;
   return `${(n / 1048576).toFixed(1)} MB`;
 }
+
+/**
+ * Calendar arithmetic mirroring server/domain/time.js, so a form can preview
+ * the exact date the server will store. Months and years clamp to the
+ * destination month's last valid day.
+ */
+export function addInterval(iso: string, value: number, unit: string): string {
+  const { y, m, d } = parts(iso);
+  if (unit === 'days' || unit === 'weeks') return shiftDate(iso, value * (unit === 'weeks' ? 7 : 1));
+  const months = unit === 'years' ? value * 12 : value;
+  const zero = y * 12 + (m - 1) + months;
+  const destYear = Math.floor(zero / 12);
+  const destMonth = ((zero % 12) + 12) % 12 + 1;
+  const lastDay = new Date(Date.UTC(destYear, destMonth, 0)).getUTCDate();
+  const day = Math.min(d, lastDay);
+  return `${String(destYear).padStart(4, '0')}-${String(destMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
