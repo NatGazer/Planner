@@ -349,6 +349,9 @@ body { overscroll-behavior-y: none; }
 .w-check__label { font-size: var(--t-15); font-weight: var(--w-semi); }
 
 .w-failure {
+  /* Clears the sticky submit bar when scrolled to, so the reason for a refusal
+     is never hidden behind the button that caused it. */
+  scroll-margin-block-end: 150px;
   display: flex; align-items: center; gap: var(--s-2);
   padding: var(--s-3);
   border-radius: var(--r-sm);

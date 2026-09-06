@@ -40,6 +40,7 @@ export function TaskDetail({ id }: { id: string }) {
   const [nudge, setNudge] = useState(0);
   const checkRef = useRef<HTMLButtonElement | null>(null);
   const captureRef = useRef<HTMLDivElement | null>(null);
+  const failureRef = useRef<HTMLParagraphElement | null>(null);
 
   /**
    * Tapping Submit before it is ready is not an error — it is a question.
@@ -64,6 +65,11 @@ export function TaskDetail({ id }: { id: string }) {
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Could not reach the server. The job is still open — try again.';
       setFailure(message);
+      // Bring the reason into view: it sits above a sticky submit bar, and an
+      // explanation nobody can see is the same as no explanation.
+      requestAnimationFrame(() => {
+        failureRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+      });
       if (err instanceof ApiError && (err.code === 'ALREADY_COMPLETED' || err.status === 404)) {
         toaster.info('Already done', 'Someone else submitted this one. Here is the up-to-date list.');
         setTimeout(() => navigate('/'), 900);
@@ -71,7 +77,7 @@ export function TaskDetail({ id }: { id: string }) {
     } finally {
       setBusy(false);
     }
-  }, [photo, done, busy, id, comment, detail.data, toaster, navigate]);
+  }, [photo, done, busy, id, comment, detail.data, toaster, navigate, reduced]);
 
   if (detail.error && !detail.data) {
     return (
@@ -218,6 +224,7 @@ export function TaskDetail({ id }: { id: string }) {
           <AnimatePresence initial={false}>
             {failure ? (
               <motion.p
+                ref={failureRef}
                 className="w-failure"
                 role="alert"
                 initial={reduced ? { opacity: 0 } : { opacity: 0, y: -6, height: 0 }}
