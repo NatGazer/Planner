@@ -17,6 +17,9 @@
  *     dates are left alone unless an administrator reschedules explicitly.
  *   • Deactivating equipment or a rule hides its pending tasks. Nothing is
  *     deleted, and reactivation restores the original dates, overdue included.
+ *   • Moving an item to a different type is the same kind of hiding: work under
+ *     rules that no longer apply goes dormant at its own date and comes back if
+ *     the item is moved back. No pending occurrence is ever deleted.
  */
 const { newId } = require('./ids.js');
 const { addInterval, nowInstant } = require('./time.js');
@@ -107,35 +110,40 @@ function initializeTasksForRule(db, rule, { setupDate, firstDueDate = null }) {
 }
 
 /**
- * Retire pending tasks for pairs that no longer exist — the only case being an
- * equipment item moved to a different type. Completed history is untouched:
- * it carries its own snapshot and is never rewritten.
+ * An equipment item moved to a different type stops inheriting the old type's
+ * rules, so their pending work drops out of every list and count.
+ *
+ * It is *not* deleted. This is the same promise deactivation makes: the
+ * occurrence keeps its own due date, overdue included, and comes back exactly
+ * as it was if the item is ever moved back. Deleting it would quietly destroy
+ * an obligation — and a type set by mistake is a mistake somebody has to be
+ * able to undo. The rows stay; `APPLIES` in the query layer is what hides
+ * them. Completed history is untouched either way: it carries its own snapshot.
  */
-function retireOrphanedPendingTasks(db, equipment, actor) {
-  const orphans = db.all(
+function markDormantAfterTypeChange(db, equipment, actor) {
+  const dormant = db.all(
     `SELECT t.*, r.title AS rule_title
        FROM maintenance_tasks t
        JOIN maintenance_rules r ON r.id = t.rule_id
       WHERE t.equipment_id = ? AND t.status = 'pending' AND r.type_id <> ?`,
     [equipment.id, equipment.type_id],
   );
-  for (const o of orphans) {
-    db.run(`DELETE FROM maintenance_tasks WHERE id = ? AND status = 'pending'`, [o.id]);
+  for (const o of dormant) {
     audit.record(db, {
       actor,
-      action: 'task.retired',
+      action: 'task.dormant',
       entity: 'maintenance_task',
       entityId: o.id,
-      summary: `Retired pending "${o.rule_title}" on ${equipment.code}, which was due ${o.due_date} — the rule no longer applies after the type change`,
+      summary: `"${o.rule_title}" on ${equipment.code}, due ${o.due_date}, is dormant — that rule does not apply to the new type`,
       detail: {
         dueDate: o.due_date,
         ruleId: o.rule_id,
         ruleTitle: o.rule_title,
-        note: 'The date is recorded here because the occurrence itself is gone. Completed history for this rule is untouched.',
+        note: 'The occurrence is kept at this date. Move the item back to its old type and it returns exactly as it was.',
       },
     });
   }
-  return orphans.length;
+  return dormant.length;
 }
 
 /**
@@ -204,7 +212,7 @@ module.exports = {
   defaultFirstDue,
   initializeTasksForEquipment,
   initializeTasksForRule,
-  retireOrphanedPendingTasks,
+  markDormantAfterTypeChange,
   scheduleNextAfterCompletion,
   rescheduleTask,
   reconcileSchedules,

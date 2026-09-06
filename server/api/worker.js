@@ -47,7 +47,7 @@ function register(router, ctx) {
     actorOrThrow(ctx, req);
     const t = today();
     const task = queries.taskById(db, params.id, t);
-    if (!task || task.status !== 'pending' || !task.equipment.active || !task.rule.active) {
+    if (!task || task.status !== 'pending' || !task.equipment.active || !task.rule.active || !task.rule.applies) {
       throw notFound('That task is no longer outstanding.');
     }
     send(res, 200, { today: t, task });

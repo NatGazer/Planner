@@ -309,3 +309,68 @@ test('counts are exact even when the list they describe was cut', () => {
   assert.equal(stillCounts.total, 30);
   assert.equal(stillCounts.soon + stillCounts.later + stillCounts.today + stillCounts.overdue, 30);
 });
+
+test('moving an item to another type hides its old work without destroying it', () => {
+  const pumps = catalog.createType(db, { name: 'Transfer pump' }, admin);
+  const fans = catalog.createType(db, { name: 'Extract fan' }, admin);
+  const oil = catalog.createRule(db, { typeId: pumps.id, title: 'Oil change', intervalValue: 1, intervalUnit: 'months' }, admin, { today: TODAY }).rule;
+  const belt = catalog.createRule(db, { typeId: fans.id, title: 'Belt tension', intervalValue: 1, intervalUnit: 'years' }, admin, { today: TODAY }).rule;
+
+  const item = catalog.createEquipment(db, { code: 'TP-9', name: 'Transfer pump nine', typeId: pumps.id, firstDueDate: '2026-02-01' }, admin, { today: TODAY }).equipment;
+  const original = pending(item.id, oil.id);
+  assert.equal(original.due_date, '2026-02-01');            // 37 days overdue on TODAY
+
+  // Move it to a type the oil rule does not belong to.
+  catalog.updateEquipment(db, item.id, { typeId: fans.id }, admin, { today: TODAY });
+
+  // The occurrence is gone from every list and count...
+  const listed = queries.outstandingTasks(db, { today: TODAY, equipmentId: item.id });
+  assert.deepEqual(listed.map((x) => x.rule.id), [belt.id]);
+  const hiddenToo = queries.outstandingTasks(db, { today: TODAY, equipmentId: item.id, includeHidden: true });
+  assert.deepEqual(hiddenToo.map((x) => x.rule.id), [belt.id]);
+
+  // ...but the row itself was never deleted, and it kept its overdue date.
+  const kept = pending(item.id, oil.id);
+  assert.ok(kept, 'the pending occurrence must survive the type change');
+  assert.equal(kept.id, original.id);
+  assert.equal(kept.due_date, '2026-02-01');
+
+  // It is not completable while dormant.
+  const photo = makePhoto(db, worker.id, 7);
+  assert.throws(
+    () => submitCompletion(db, { taskId: kept.id, employee: worker, photoId: photo.id }),
+    (err) => err.code === 'RULE_NOT_APPLICABLE',
+  );
+
+  // Moving it back restores exactly what was there — no new task, no new date.
+  catalog.updateEquipment(db, item.id, { typeId: pumps.id }, admin, { today: TODAY });
+  const restored = pending(item.id, oil.id);
+  assert.equal(restored.id, original.id);
+  assert.equal(restored.due_date, '2026-02-01');
+  const back = queries.outstandingTasks(db, { today: TODAY, equipmentId: item.id });
+  assert.deepEqual(back.map((x) => x.rule.id), [oil.id]);
+  assert.equal(back[0].due.bucket, 'overdue');
+
+  // And the round trip left one row per pair, not a pile of them.
+  const rows = db.all('SELECT id FROM maintenance_tasks WHERE equipment_id = ?', [item.id]);
+  assert.equal(rows.length, 2);
+});
+
+test('an asset code containing a LIKE wildcard searches for itself', () => {
+  const type = catalog.createType(db, { name: 'Chiller' }, admin);
+  const mk = (code) => catalog.createEquipment(db, { code, name: code, typeId: type.id }, admin, { today: TODAY }).equipment;
+  mk('CHL_01'); mk('CHL-01'); mk('CHLX01'); mk('CHL%99');
+
+  const underscore = catalog.listEquipment(db, { search: 'CHL_01' }).map((e) => e.code);
+  assert.deepEqual(underscore, ['CHL_01']);
+
+  const percent = catalog.listEquipment(db, { search: 'CHL%99' }).map((e) => e.code);
+  assert.deepEqual(percent, ['CHL%99']);
+
+  // A bare wildcard is a literal too: it finds only the codes containing one,
+  // never the whole estate.
+  const bare = catalog.listEquipment(db, { search: '%' }).map((e) => e.code);
+  assert.ok(bare.includes('CHL%99'));
+  assert.ok(bare.every((c) => c.includes('%')));
+  assert.ok(bare.length < catalog.listEquipment(db, {}).length);
+});

@@ -15,7 +15,7 @@ type Scope = 'all' | 'schedule' | 'config';
 
 const ICONS: Record<string, IconName> = {
   'task.rescheduled': 'calendar',
-  'task.retired': 'archive',
+  'task.dormant': 'archive',
   'equipment.created': 'plus',
   'equipment.updated': 'edit',
   'equipment.activated': 'power',

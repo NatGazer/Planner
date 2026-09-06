@@ -44,6 +44,12 @@ function submitCompletion(db, { taskId, employee, photoId, comment }) {
     if (!rule.active || rule.archived) {
       throw conflict('RULE_INACTIVE', `"${rule.title}" has been deactivated. Nothing to submit.`);
     }
+    // The item has been moved to another type since this occurrence opened, so
+    // the rule no longer applies to it. The row stays on file — dormant, not
+    // deleted — but it is not work anybody should be closing.
+    if (rule.type_id !== equipment.type_id) {
+      throw conflict('RULE_NOT_APPLICABLE', `${equipment.name} is no longer a "${rule.title}" item. Nothing to submit.`);
+    }
     const type = tx.get(`SELECT * FROM equipment_types WHERE id = ?`, [equipment.type_id]);
 
     // The photo must exist, must belong to the employee submitting, and must

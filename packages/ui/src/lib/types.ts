@@ -84,6 +84,8 @@ export interface Task {
     intervalValue: number;
     intervalUnit: IntervalUnit;
     active: boolean;
+    /** False once the item has moved to a type this rule does not belong to. */
+    applies: boolean;
   };
 }
 

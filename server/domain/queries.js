@@ -48,6 +48,9 @@ function taskShape(row, today) {
       intervalValue: row.interval_value,
       intervalUnit: row.interval_unit,
       active: !!row.rule_active,
+      // False when the item has been moved to another type: the occurrence is
+      // still on file, it simply does not apply to this item any more.
+      applies: row.rule_type_id == null ? true : row.rule_type_id === row.type_id,
     },
   };
 }
@@ -56,14 +59,23 @@ const TASK_SELECT = `
   SELECT t.id, t.equipment_id, t.rule_id, t.due_date, t.status, t.created_at, t.closed_at,
          e.code AS equipment_code, e.name AS equipment_name, e.location, e.active AS equipment_active,
          ty.id AS type_id, ty.name AS type_name, ty.accent AS type_accent, ty.icon AS type_icon,
-         r.title AS rule_title, r.instructions, r.interval_value, r.interval_unit, r.active AS rule_active
+         r.title AS rule_title, r.instructions, r.interval_value, r.interval_unit, r.active AS rule_active,
+         r.type_id AS rule_type_id
     FROM maintenance_tasks t
     JOIN equipment e ON e.id = t.equipment_id
     JOIN equipment_types ty ON ty.id = e.type_id
     JOIN maintenance_rules r ON r.id = t.rule_id`;
 
-/** Actionable = pending, on active equipment, under an active rule. */
-const ACTIONABLE = `t.status = 'pending' AND e.active = 1 AND e.archived = 0 AND r.active = 1 AND r.archived = 0`;
+/**
+ * A rule only ever applies to equipment of its own type. When an item is moved
+ * to a different type, its pending work under the old type is not deleted — it
+ * goes dormant, exactly as a deactivated item's does, and comes back at its own
+ * original due date (overdue included) if the item is ever moved back.
+ */
+const APPLIES = `r.type_id = e.type_id`;
+
+/** Actionable = pending, on active equipment, under an active rule that applies. */
+const ACTIONABLE = `t.status = 'pending' AND e.active = 1 AND e.archived = 0 AND r.active = 1 AND r.archived = 0 AND ${APPLIES}`;
 
 /**
  * Outstanding work, ascending by due date — which puts overdue first by
@@ -74,7 +86,7 @@ const ACTIONABLE = `t.status = 'pending' AND e.active = 1 AND e.archived = 0 AND
  * can never disagree about what "outstanding" means.
  */
 function taskFilter({ today, includeHidden = false, equipmentId = null, typeId = null, ruleId = null, bucket = null, on = null, search = null }) {
-  const where = [includeHidden ? `t.status = 'pending'` : ACTIONABLE];
+  const where = [includeHidden ? `t.status = 'pending' AND ${APPLIES}` : ACTIONABLE];
   const params = [];
   if (equipmentId) { where.push('t.equipment_id = ?'); params.push(equipmentId); }
   if (typeId) { where.push('e.type_id = ?'); params.push(typeId); }
@@ -244,7 +256,7 @@ function dashboard(db, { today }) {
     SELECT COUNT(*) AS n FROM maintenance_tasks t
       JOIN equipment e ON e.id = t.equipment_id
       JOIN maintenance_rules r ON r.id = t.rule_id
-     WHERE t.status = 'pending' AND (e.active = 0 OR r.active = 0)`);
+     WHERE t.status = 'pending' AND (e.active = 0 OR r.active = 0 OR r.type_id <> e.type_id)`);
 
   // 28-day completion trend, business-local dates.
   const since14 = addDays(today, -27);
@@ -286,7 +298,7 @@ function dashboard(db, { today }) {
       LEFT JOIN equipment e ON e.type_id = ty.id AND e.archived = 0 AND e.active = 1
       LEFT JOIN maintenance_tasks t
              ON t.equipment_id = e.id AND t.status = 'pending'
-      LEFT JOIN maintenance_rules r ON r.id = t.rule_id AND r.active = 1 AND r.archived = 0
+      LEFT JOIN maintenance_rules r ON r.id = t.rule_id AND r.active = 1 AND r.archived = 0 AND r.type_id = e.type_id
      WHERE ty.archived = 0
      GROUP BY ty.id ORDER BY equipment_count DESC, ty.name ASC`, [today]);
 
@@ -338,4 +350,4 @@ function dashboard(db, { today }) {
   };
 }
 
-module.exports = { outstandingTasks, outstandingCounts, taskById, taskShape, completionHistory, completionById, completionShape, dashboard, TASK_SELECT, ACTIONABLE };
+module.exports = { outstandingTasks, outstandingCounts, taskById, taskShape, completionHistory, completionById, completionShape, dashboard, likeTerm, TASK_SELECT, ACTIONABLE, APPLIES };

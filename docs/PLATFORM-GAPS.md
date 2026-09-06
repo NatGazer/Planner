@@ -51,9 +51,12 @@ unassigned by design.
    accept both roles while admin endpoints are strictly `admin`. A worker
    account cannot even sign in to the admin app.
 3. **Changing an item's equipment type is allowed** and reconciles the
-   schedule: pending work for rules that no longer apply is retired and
-   audited, the new type's rules open fresh schedules, and completed history is
-   untouched. The brief does not cover this case; the alternative was to make
-   the type immutable, which is worse for a real estate.
+   schedule: pending work under rules that no longer apply goes dormant — kept
+   at its own due date, audited, hidden from every list and count, and restored
+   unchanged if the item is moved back — while the new type's rules open their
+   schedules. Completed history is untouched. The brief does not cover this
+   case; the alternative was to make the type immutable, which is worse for a
+   real estate, and deleting the pending work would destroy an obligation a
+   mistyped item still owes.
 4. **Archiving, never deleting.** Types, equipment and rules archive. Nothing
    that history points at is ever removed.

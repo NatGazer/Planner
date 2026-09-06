@@ -9,6 +9,7 @@ const { badRequest, notFound, conflict } = require('./errors.js');
 const { isUniqueViolation } = require('../db/connector.js');
 const audit = require('./audit.js');
 const sched = require('./scheduling.js');
+const { likeTerm } = require('./queries.js');
 
 const ACCENTS = ['aurora', 'ember', 'cobalt', 'orchid', 'lime', 'sunset', 'ice', 'gold'];
 const ICONS = ['cube', 'fan', 'bolt', 'drop', 'gear', 'flame', 'wave', 'shield', 'truck', 'leaf', 'chip', 'lift'];
@@ -119,8 +120,10 @@ function listEquipment(db, { typeId = null, active = null, search = null } = {})
   if (active === true) where.push('e.active = 1');
   if (active === false) where.push('e.active = 0');
   if (search) {
-    where.push('(e.code LIKE ? OR e.name LIKE ? OR e.location LIKE ?)');
-    const q = `%${search}%`; params.push(q, q, q);
+    // Escaped like every other search in the system: an asset code containing
+    // '_' or '%' has to match itself, not stand in for any character.
+    where.push(`(e.code LIKE ? ESCAPE '\\' OR e.name LIKE ? ESCAPE '\\' OR e.location LIKE ? ESCAPE '\\')`);
+    const q = likeTerm(search); params.push(q, q, q);
   }
   return db.all(`${EQUIPMENT_SELECT} WHERE ${where.join(' AND ')} ORDER BY e.code ASC`, params).map(equipmentShape);
 }
@@ -189,12 +192,13 @@ function updateEquipment(db, id, patch, actor, { today }) {
     }
     const after = tx.get('SELECT * FROM equipment WHERE id = ?', [id]);
 
-    let retired = 0; let opened = [];
+    let dormant = 0; let opened = [];
     if (next.type_id !== before.type_id) {
       // Moving an item to a different type changes which rules apply. Pending
-      // work for rules that no longer apply is retired (audited); the new
-      // type's rules open fresh schedules. Completed history is never touched.
-      retired = sched.retireOrphanedPendingTasks(tx, after, actor);
+      // work under rules that no longer apply goes dormant — kept at its own
+      // due date, audited, and restored if the item is moved back — while the
+      // new type's rules open their schedules. History is never touched.
+      dormant = sched.markDormantAfterTypeChange(tx, after, actor);
       opened = sched.initializeTasksForEquipment(tx, after, { setupDate: today });
     }
     if (next.active !== before.active) {
@@ -210,7 +214,7 @@ function updateEquipment(db, id, patch, actor, { today }) {
       audit.record(tx, {
         actor, action: 'equipment.updated', entity: 'equipment', entityId: id,
         summary: `Updated ${after.code} — ${after.name}`,
-        detail: { changed, before: { code: before.code, name: before.name, typeId: before.type_id, location: before.location }, after: { code: next.code, name: next.name, typeId: next.type_id, location: next.location }, retiredTasks: retired, openedTasks: opened.length },
+        detail: { changed, before: { code: before.code, name: before.name, typeId: before.type_id, location: before.location }, after: { code: next.code, name: next.name, typeId: next.type_id, location: next.location }, dormantTasks: dormant, openedTasks: opened.length },
       });
     }
     return getEquipment(tx, id);
