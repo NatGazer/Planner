@@ -302,3 +302,48 @@ test('a malformed request is answered, and does not take the server with it', as
   assert.equal(health.status, 200);
   assert.equal((await health.json()).ok, true);
 });
+
+test('due-status tab counts describe the whole list, not the tab you are on', async () => {
+  const { cookie } = await signIn(adminPort, 'ana@test.example', 'admin1234');
+  const all = await (await call(adminPort, '/api/admin/tasks', { headers: { cookie } })).json();
+  const overdueOnly = await (await call(adminPort, '/api/admin/tasks?bucket=overdue', { headers: { cookie } })).json();
+
+  assert.deepEqual(overdueOnly.counts, all.counts,
+    'switching to a tab must not change what the other tabs say');
+  assert.equal(overdueOnly.shown, overdueOnly.tasks.length);
+  assert.ok(overdueOnly.tasks.every((t) => t.due.bucket === 'overdue'));
+
+  // But a non-bucket filter genuinely narrows the counts.
+  const narrowed = await (await call(adminPort, `/api/admin/tasks?typeId=${type.id}`, { headers: { cookie } })).json();
+  assert.ok(narrowed.counts.total <= all.counts.total);
+});
+
+test('a day column opens exactly the tasks due on that day', async () => {
+  const { cookie } = await signIn(adminPort, 'ana@test.example', 'admin1234');
+  const all = await (await call(adminPort, '/api/admin/tasks', { headers: { cookie } })).json();
+  const someDate = all.tasks[0].dueDate;
+  const onDay = await (await call(adminPort, `/api/admin/tasks?on=${someDate}`, { headers: { cookie } })).json();
+  assert.ok(onDay.tasks.length > 0);
+  assert.ok(onDay.tasks.every((t) => t.dueDate === someDate));
+});
+
+test('rescheduling to the date it already has reports no change', async () => {
+  const { cookie } = await signIn(adminPort, 'ana@test.example', 'admin1234');
+  const task = db.get(`SELECT * FROM maintenance_tasks WHERE status='pending' LIMIT 1`);
+  const first = await (await call(adminPort, `/api/admin/tasks/${task.id}/reschedule`, {
+    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ dueDate: '2031-06-01' }),
+  })).json();
+  assert.equal(first.changed, true);
+
+  const again = await (await call(adminPort, `/api/admin/tasks/${task.id}/reschedule`, {
+    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ dueDate: '2031-06-01' }),
+  })).json();
+  assert.equal(again.changed, false, 'nothing moved, so nothing is reported as moved');
+
+  // Earlier tests may have moved this same task; count only this date.
+  const entries = require('../domain/audit.js').list(db, { entity: 'maintenance_task', entityId: task.id });
+  assert.equal(entries.filter((e) => e.action === 'task.rescheduled' && e.detail?.to === '2031-06-01').length, 1,
+    'and the no-op is not written to the audit log');
+});

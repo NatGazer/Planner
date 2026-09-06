@@ -55,7 +55,7 @@ const ACTIONABLE = `t.status = 'pending' AND e.active = 1 AND e.archived = 0 AND
  * Outstanding work, ascending by due date — which puts overdue first by
  * construction, since an overdue date is simply an earlier date.
  */
-function outstandingTasks(db, { today, includeHidden = false, equipmentId = null, typeId = null, ruleId = null, bucket = null, search = null, limit = 500 }) {
+function outstandingTasks(db, { today, includeHidden = false, equipmentId = null, typeId = null, ruleId = null, bucket = null, on = null, search = null, limit = 500 }) {
   const where = [includeHidden ? `t.status = 'pending'` : ACTIONABLE];
   const params = [];
   if (equipmentId) { where.push('t.equipment_id = ?'); params.push(equipmentId); }
@@ -66,6 +66,7 @@ function outstandingTasks(db, { today, includeHidden = false, equipmentId = null
   else if (bucket === 'week') { where.push('t.due_date > ? AND t.due_date <= ?'); params.push(today, addDays(today, 7)); }
   else if (bucket === 'due-or-overdue') { where.push('t.due_date <= ?'); params.push(today); }
   else if (bucket === 'later') { where.push('t.due_date > ?'); params.push(addDays(today, 7)); }
+  if (on) { where.push('t.due_date = ?'); params.push(on); }
   if (search) {
     where.push('(e.code LIKE ? OR e.name LIKE ? OR r.title LIKE ? OR e.location LIKE ?)');
     const q = `%${search}%`;
@@ -271,4 +272,16 @@ function dashboard(db, { today }) {
   };
 }
 
-module.exports = { outstandingTasks, taskById, taskShape, completionHistory, completionById, completionShape, dashboard, TASK_SELECT, ACTIONABLE };
+/**
+ * How the outstanding work divides by urgency, ignoring any due-status filter.
+ * The tab that says "Overdue 13" has to keep saying 13 while you are looking
+ * at the overdue list — a count computed from the filtered result would read
+ * "Overdue 13 · Today 0" the moment you selected Overdue.
+ */
+function outstandingCounts(db, { today, includeHidden = false, equipmentId = null, typeId = null, ruleId = null, search = null }) {
+  const all = outstandingTasks(db, { today, includeHidden, equipmentId, typeId, ruleId, search, limit: 1000 });
+  const of = (b) => all.filter((t) => t.due.bucket === b).length;
+  return { total: all.length, overdue: of('overdue'), today: of('today'), soon: of('soon'), later: of('later') };
+}
+
+module.exports = { outstandingTasks, outstandingCounts, taskById, taskShape, completionHistory, completionById, completionShape, dashboard, TASK_SELECT, ACTIONABLE };

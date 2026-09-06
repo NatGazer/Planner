@@ -41,8 +41,15 @@ export function RescheduleDialog({ task, today, onClose, onDone }: RescheduleDia
     if (!task) return;
     setBusy(true);
     try {
-      await adminApi.reschedule(task.id, value, reason.trim() || undefined);
-      toaster.success('Task rescheduled', `${task.rule.title} on ${task.equipment.code} now falls due ${longDate(value)}.`);
+      const result = await adminApi.reschedule(task.id, value, reason.trim() || undefined);
+      if (result.changed) {
+        toaster.success('Task rescheduled', `${task.rule.title} on ${task.equipment.code} now falls due ${longDate(value)}.`);
+      } else {
+        // The server left it alone — the date was already this, or the task
+        // was completed while the dialog was open. Saying "rescheduled" here
+        // would be a lie the activity log would then contradict.
+        toaster.info('Nothing to change', 'That task is already due on this date, or it has just been completed.');
+      }
       setDueDate(''); setReason('');
       onDone();
     } catch (err) {

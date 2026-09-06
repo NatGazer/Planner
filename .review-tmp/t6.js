@@ -1,0 +1,24 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage();
+  await p.goto('http://localhost:4310/');
+  await p.fill('input[type=email]', 'ana@fieldworks.example');
+  await p.fill('input[type=password]', 'admin1234');
+  await p.click('button[type=submit]');
+  await p.waitForSelector('.page__title', { timeout: 15000 });
+  await p.route('**/api/admin/types**', async r => { await new Promise(s => setTimeout(s, 4000)); await r.continue(); });
+  await p.evaluate(() => { window.location.hash = '#/rules'; });
+  await p.waitForSelector('.page__head-actions button', { timeout: 15000 });
+  await p.locator('.page__head-actions button', { hasText: 'New maintenance task' }).click();
+  await p.waitForSelector('.sheet textarea', { timeout: 6000 });
+  const title = p.locator('.sheet .field').filter({ hasText: 'What needs doing' }).locator('input');
+  const instr = p.locator('.sheet textarea');
+  await title.fill('Replace air filters');
+  await instr.fill('Undo four clips, slide the filter out, note the size on the frame.');
+  await p.locator('.cadence-picker__presets button', { hasText: 'Yearly' }).click();
+  console.log('typed ->', await title.inputValue(), '|', (await instr.inputValue()).slice(0,30), '| cadence:', (await p.locator('.cadence-picker__echo').textContent()).slice(0,20));
+  await p.waitForTimeout(6000);
+  console.log('after ->', JSON.stringify(await title.inputValue()), '|', JSON.stringify(await instr.inputValue()), '| cadence:', (await p.locator('.cadence-picker__echo').textContent()).slice(0,20));
+  await b.close();
+})();

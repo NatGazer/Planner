@@ -20,6 +20,7 @@ import { EquipmentForm } from '../components/EquipmentForm';
 import { CadenceChip, CompletionRow, TaskRow } from '../components/primitives';
 import { CompletionSheet } from '../components/CompletionSheet';
 import { RescheduleDialog } from '../components/RescheduleDialog';
+import { ArchiveDialog } from '../components/ArchiveDialog';
 
 type Tab = 'schedule' | 'history' | 'activity';
 
@@ -42,6 +43,7 @@ export function EquipmentDetail({ id }: { id: string }) {
   const [duplicating, setDuplicating] = useState(false);
   const [rescheduling, setRescheduling] = useState<Task | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   const toggleActive = useCallback(async () => {
     if (!detail.data) return;
@@ -126,6 +128,7 @@ export function EquipmentDetail({ id }: { id: string }) {
           <Button variant={equipment.active ? 'ghost' : 'primary'} icon="power" onClick={toggleActive}>
             {equipment.active ? 'Deactivate' : 'Reactivate'}
           </Button>
+          <Button variant="quiet" icon="archive" onClick={() => setArchiving(true)}>Archive</Button>
         </div>
       </motion.header>
 
@@ -254,6 +257,17 @@ export function EquipmentDetail({ id }: { id: string }) {
         today={today}
         onClose={() => setRescheduling(null)}
         onDone={() => { setRescheduling(null); void detail.reload(); }}
+      />
+
+      <ArchiveDialog
+        open={archiving}
+        onClose={() => setArchiving(false)}
+        kind="equipment"
+        label={`${equipment.code} — ${equipment.name}`}
+        completionCount={equipment.completionCount}
+        pendingCount={tasks.length}
+        archive={() => adminApi.archiveEquipment(equipment.id)}
+        onDone={() => navigate('/equipment')}
       />
 
       <CompletionSheet id={viewing} onClose={() => setViewing(null)} />

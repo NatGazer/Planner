@@ -19,6 +19,7 @@ import { RuleForm } from '../components/RuleForm';
 import { CompletionRow, TaskRow } from '../components/primitives';
 import { CompletionSheet } from '../components/CompletionSheet';
 import { RescheduleDialog } from '../components/RescheduleDialog';
+import { ArchiveDialog } from '../components/ArchiveDialog';
 
 type Tab = 'schedule' | 'history' | 'activity';
 
@@ -37,6 +38,7 @@ export function RuleDetail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [rescheduling, setRescheduling] = useState<Task | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   const toggleActive = useCallback(async () => {
     if (!detail.data) return;
@@ -95,6 +97,7 @@ export function RuleDetail({ id }: { id: string }) {
           <Button variant={rule.active ? 'ghost' : 'primary'} icon="power" onClick={toggleActive}>
             {rule.active ? 'Deactivate' : 'Reactivate'}
           </Button>
+          <Button variant="quiet" icon="archive" onClick={() => setArchiving(true)}>Archive</Button>
         </div>
       </header>
 
@@ -175,6 +178,17 @@ export function RuleDetail({ id }: { id: string }) {
         types={types.data?.types ?? []} today={today} existing={rule}
       />
       <RescheduleDialog task={rescheduling} today={today} onClose={() => setRescheduling(null)} onDone={() => { setRescheduling(null); void detail.reload(); }} />
+      <ArchiveDialog
+        open={archiving}
+        onClose={() => setArchiving(false)}
+        kind="maintenance task"
+        label={rule.title}
+        completionCount={rule.completionCount}
+        pendingCount={tasks.length}
+        archive={() => adminApi.archiveRule(rule.id)}
+        onDone={() => navigate('/rules')}
+      />
+
       <CompletionSheet id={viewing} onClose={() => setViewing(null)} />
     </div>
   );

@@ -10,7 +10,7 @@ import { Button } from '@ui/components/Button';
 import { SelectField, Segmented, Switch } from '@ui/components/Field';
 import { EmptyState, ErrorState, Skeleton } from '@ui/components/states';
 import { groupByUrgency } from '@ui/lib/status';
-import { plural } from '@ui/lib/format';
+import { longDate, plural } from '@ui/lib/format';
 import type { Task } from '@ui/lib/types';
 import { adminApi } from '../data';
 import { TaskRow } from '../components/primitives';
@@ -37,6 +37,7 @@ export function TaskBoard() {
   const reduced = usePrefersReducedMotion();
 
   const [bucket, setBucket] = useState<Bucket>((query.get('bucket') as Bucket) || 'all');
+  const onDate = query.get('on');
   const [typeId, setTypeId] = useState(query.get('type') ?? '');
   const [equipmentId, setEquipmentId] = useState(query.get('equipment') ?? '');
   const [search, setSearch] = useState('');
@@ -46,11 +47,12 @@ export function TaskBoard() {
 
   const filters = useMemo(() => ({
     bucket: bucket === 'all' ? (query.get('bucket') === 'due-or-overdue' ? 'due-or-overdue' : null) : bucket,
+    on: onDate,
     typeId: typeId || null,
     equipmentId: equipmentId || null,
     search: debounced || null,
     includeHidden,
-  }), [bucket, typeId, equipmentId, debounced, includeHidden, query]);
+  }), [bucket, onDate, typeId, equipmentId, debounced, includeHidden, query]);
 
   const list = useResource(() => adminApi.tasks(filters), [JSON.stringify(filters)]);
   const options = useResource(() => Promise.all([adminApi.types(), adminApi.equipment()]), []);
@@ -92,6 +94,16 @@ export function TaskBoard() {
                   : b.value === 'week' ? counts?.soon : counts?.later,
           }))}
         />
+        {onDate ? (
+          <div className="filterbar__row">
+            <span className="chip is-selected">
+              <Icon name="calendar" size={12} /> Due on {longDate(onDate)}
+              <button type="button" onClick={() => navigate('/tasks')} aria-label="Clear the date filter" style={{ marginLeft: 4, display: 'grid' }}>
+                <Icon name="close" size={12} />
+              </button>
+            </span>
+          </div>
+        ) : null}
         <div className="filterbar__row">
           <label className="search">
             <Icon name="search" size={15} />

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { auth, ApiError } from './api';
+import { setBusinessTimezone } from './format';
 import type { Employee } from './types';
 
 interface SessionValue {
@@ -25,7 +26,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let live = true;
     auth.me()
-      .then((r) => { if (!live) return; setEmployee(r.employee); setToday(r.today); setTimezone(r.timezone); setStatus('signed-in'); })
+      .then((r) => {
+        if (!live) return;
+        setEmployee(r.employee); setToday(r.today);
+        setTimezone(r.timezone); setBusinessTimezone(r.timezone);
+        setStatus('signed-in');
+      })
       .catch(() => { if (live) setStatus('signed-out'); });
     return () => { live = false; };
   }, []);
@@ -46,6 +52,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setEmployee(r.employee);
       setToday(r.today);
       setTimezone(r.timezone);
+      setBusinessTimezone(r.timezone);
       setStatus('signed-in');
     } catch (err) {
       const message = err instanceof ApiError

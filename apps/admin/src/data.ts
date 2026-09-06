@@ -7,6 +7,8 @@ import type {
 
 export interface TaskFilters {
   bucket?: string | null;
+  /** An exact due date — what a day column in the workload chart opens. */
+  on?: string | null;
   equipmentId?: string | null;
   typeId?: string | null;
   ruleId?: string | null;
@@ -17,7 +19,9 @@ export interface TaskFilters {
 export interface TaskListResponse {
   today: string;
   tasks: Task[];
+  /** Across the whole list, ignoring the due-status tab. */
   counts: { total: number; overdue: number; today: number; soon: number; later: number };
+  shown: number;
 }
 
 export interface EquipmentDetailResponse {
@@ -42,6 +46,7 @@ export const adminApi = {
 
   tasks: (filters: TaskFilters = {}) => api.get<TaskListResponse>('/api/admin/tasks', {
     bucket: filters.bucket ?? undefined,
+    on: filters.on ?? undefined,
     equipmentId: filters.equipmentId ?? undefined,
     typeId: filters.typeId ?? undefined,
     ruleId: filters.ruleId ?? undefined,

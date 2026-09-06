@@ -783,6 +783,11 @@
 .activity__day-head h2 { font-size: var(--t-14); font-weight: var(--w-semi); }
 .activity__day-head span { font-size: var(--t-12); color: var(--text-low); }
 
+.archive-facts { display: grid; gap: var(--s-3); }
+.archive-facts li { display: flex; align-items: flex-start; gap: var(--s-3); font-size: var(--t-13); color: var(--text-mid); line-height: 1.5; }
+.archive-facts svg { flex: none; margin-top: 2px; color: var(--text-low); }
+.archive-facts strong { color: var(--text-hi); }
+
 .reschedule__current { font-size: var(--t-14); color: var(--text-mid); }
 .reschedule__current strong { color: var(--text-hi); }
 .reschedule__current .is-overdue { color: var(--status-overdue-ink); font-weight: var(--w-semi); }

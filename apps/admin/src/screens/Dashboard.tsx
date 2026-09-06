@@ -164,8 +164,11 @@ export function Dashboard() {
               <span><span className="workload__peak">{Math.max(...(data.upcomingLoad.map((d) => d.count)), 0)}</span> at the peak</span>
             </div>
             <Bars values={loadBars} height={168} delay={0.24} onSelect={(i) => {
-              const date = data.upcomingLoad[i];
-              navigate(i === 0 ? '/tasks?bucket=due-or-overdue' : `/tasks?bucket=week&on=${date.date}`);
+              // Day zero carries the backlog as well as today's own work, so it
+              // opens everything due or overdue; any other column opens exactly
+              // the day it represents.
+              const day = data.upcomingLoad[i];
+              navigate(i === 0 ? '/tasks?bucket=due-or-overdue' : `/tasks?on=${day.date}`);
             }} />
             <div className="workload__axis">
               {data.upcomingLoad.map((d, i) => (

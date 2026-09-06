@@ -4,6 +4,37 @@
  * differently on purpose: a due date has no time of day, ever.
  */
 
+/**
+ * The business timezone, set once from the session. Every absolute instant is
+ * rendered in it, not in whatever timezone the reader's laptop happens to be
+ * set to — a completion recorded at 16:40 on site must not read as 08:40
+ * because somebody opened the history from another country.
+ */
+let businessZone: string | null = null;
+export function setBusinessTimezone(tz: string) { businessZone = tz || null; }
+
+const partsIn = (iso: string) => {
+  const dt = new Date(iso);
+  if (!businessZone) {
+    return {
+      day: dt.getDate(), month: dt.getMonth(), year: dt.getFullYear(),
+      hour: String(dt.getHours()).padStart(2, '0'), minute: String(dt.getMinutes()).padStart(2, '0'),
+      weekday: dt.getDay(),
+    };
+  }
+  const f = new Intl.DateTimeFormat('en-GB', {
+    timeZone: businessZone, year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', weekday: 'short', hour12: false,
+  }).formatToParts(dt);
+  const get = (t: string) => f.find((x) => x.type === t)?.value ?? '';
+  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return {
+    day: Number(get('day')), month: Number(get('month')) - 1, year: Number(get('year')),
+    hour: get('hour').padStart(2, '0'), minute: get('minute').padStart(2, '0'),
+    weekday: Math.max(0, WD.indexOf(get('weekday'))),
+  };
+};
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -35,17 +66,18 @@ export function longDate(iso: string): string {
   return `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dow]}, ${d} ${MONTHS_LONG[m - 1]} ${y}`;
 }
 
-/** An absolute instant, in the reader's own timezone: '4 Mar, 14:05'. */
+/** An absolute instant, in the business timezone: '4 Mar, 14:05'. */
 export function instant(iso: string): string {
   if (!iso) return '—';
-  const dt = new Date(iso);
-  return `${dt.getDate()} ${MONTHS[dt.getMonth()]}, ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+  const p = partsIn(iso);
+  return `${p.day} ${MONTHS[p.month]}, ${p.hour}:${p.minute}`;
 }
 
 export function instantLong(iso: string): string {
   if (!iso) return '—';
-  const dt = new Date(iso);
-  return `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dt.getDay()]}, ${dt.getDate()} ${MONTHS_LONG[dt.getMonth()]} ${dt.getFullYear()} at ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+  const p = partsIn(iso);
+  const dow = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][p.weekday];
+  return `${dow}, ${p.day} ${MONTHS_LONG[p.month]} ${p.year} at ${p.hour}:${p.minute}`;
 }
 
 /** 'just now', '20 minutes ago', '3 days ago'. */

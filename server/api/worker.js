@@ -29,16 +29,12 @@ function register(router, ctx) {
   router.get('/api/worker/tasks', async (req, res, _p, url) => {
     actorOrThrow(ctx, req);
     const t = today();
-    const tasks = queries.outstandingTasks(db, { today: t, search: url.searchParams.get('search') || null });
+    const search = url.searchParams.get('search') || null;
+    const tasks = queries.outstandingTasks(db, { today: t, search });
     send(res, 200, {
       today: t,
       timezone: config.businessTimezone,
-      counts: {
-        total: tasks.length,
-        overdue: tasks.filter((x) => x.due.bucket === 'overdue').length,
-        today: tasks.filter((x) => x.due.bucket === 'today').length,
-        soon: tasks.filter((x) => x.due.bucket === 'soon').length,
-      },
+      counts: queries.outstandingCounts(db, { today: t, search }),
       tasks,
     });
   });

@@ -33,25 +33,27 @@ function register(router, ctx) {
     adminOrThrow(ctx, req);
     const t = today();
     const q = url.searchParams;
-    const tasks = queries.outstandingTasks(db, {
+    const shared = {
       today: t,
       includeHidden: q.get('includeHidden') === 'true',
       equipmentId: q.get('equipmentId') || null,
       typeId: q.get('typeId') || null,
       ruleId: q.get('ruleId') || null,
-      bucket: q.get('bucket') || null,
       search: q.get('search') || null,
+    };
+    const tasks = queries.outstandingTasks(db, {
+      ...shared,
+      bucket: q.get('bucket') || null,
+      on: isValidDate(q.get('on')) ? q.get('on') : null,
     });
     send(res, 200, {
       today: t,
       tasks,
-      counts: {
-        total: tasks.length,
-        overdue: tasks.filter((x) => x.due.bucket === 'overdue').length,
-        today: tasks.filter((x) => x.due.bucket === 'today').length,
-        soon: tasks.filter((x) => x.due.bucket === 'soon').length,
-        later: tasks.filter((x) => x.due.bucket === 'later').length,
-      },
+      // Counts describe the whole list under the current equipment/type/search
+      // filters, deliberately ignoring the due-status tab — so the tabs keep
+      // showing what you would get by switching to them.
+      counts: queries.outstandingCounts(db, shared),
+      shown: tasks.length,
     });
   });
 
