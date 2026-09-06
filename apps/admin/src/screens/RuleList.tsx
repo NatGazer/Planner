@@ -154,7 +154,7 @@ function RuleCard({ rule, onOpen }: { rule: MaintenanceRule; onOpen: () => void 
       {rule.instructions ? <span className="rule-card__instructions">{rule.instructions}</span> : <span className="rule-card__instructions rule-card__instructions--none">No instructions written yet.</span>}
       <span className="rule-card__foot">
         <span className="cadence-chip"><Icon name="refresh" size={11} /> {cadence(rule.intervalValue, rule.intervalUnit)}</span>
-        <span className="rule-card__stat">{plural(rule.pendingCount, 'scheduled')}</span>
+        <span className="rule-card__stat">{rule.pendingCount} scheduled</span>
         <span className="rule-card__stat">{plural(rule.completionCount, 'completion')}</span>
         <Icon name="chevronRight" size={15} className="rule-card__go" />
       </span>
