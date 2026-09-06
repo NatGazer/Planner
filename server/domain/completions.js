@@ -87,6 +87,12 @@ function submitCompletion(db, { taskId, employee, photoId, comment }) {
       );
     } catch (err) {
       if (isUniqueViolation(err)) {
+        // Either the task already has a completion, or this photo already
+        // backs one. Both mean: this submission is not the one that counts.
+        const claimed = tx.get('SELECT id FROM completions WHERE photo_id = ?', [photo.id]);
+        if (claimed) {
+          throw badRequest('PHOTO_REUSED', 'That photo is already attached to another completion.');
+        }
         throw conflict('ALREADY_COMPLETED', 'Already completed — someone got to this one first.');
       }
       throw err;

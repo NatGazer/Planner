@@ -131,3 +131,35 @@ test('oversized and unsupported uploads are refused before anything is written',
   assert.throws(() => photoStore.assertAcceptable('image/png', 0), (e) => e.code === 'PHOTO_EMPTY');
   assert.throws(() => photoStore.assertAcceptable('image/png', 99 * 1024 * 1024), (e) => e.code === 'PHOTO_TOO_LARGE');
 });
+
+test('a photo claimed mid-sweep keeps its bytes', () => {
+  const photo = makePhoto(db, alice.id, 21);
+  const file = require('node:path').join(box.config.photoDir, photo.storage_key);
+  assert.ok(require('node:fs').existsSync(file));
+
+  // Simulate the race: the row is claimed after it was read as unclaimed.
+  db.run('UPDATE photos SET claimed = 1 WHERE id = ?', [photo.id]);
+  const removed = photoStore.discardUnclaimed(db, photo.id);
+
+  assert.equal(removed, false, 'the discard reports that it did nothing');
+  assert.ok(require('node:fs').existsSync(file), 'and the bytes a completion may point at survive');
+});
+
+test('the database itself refuses a photo used twice', () => {
+  const t3 = catalog.createType(db, { name: 'Hoist' }, admin);
+  catalog.createRule(db, { typeId: t3.id, title: 'Chain check', intervalValue: 1, intervalUnit: 'months' }, admin, { today: TODAY });
+  const a = catalog.createEquipment(db, { code: 'HO-1', name: 'Hoist one', typeId: t3.id }, admin, { today: TODAY }).equipment;
+  const b = catalog.createEquipment(db, { code: 'HO-2', name: 'Hoist two', typeId: t3.id }, admin, { today: TODAY }).equipment;
+  const taskA = db.get(`SELECT * FROM maintenance_tasks WHERE equipment_id=? AND status='pending'`, [a.id]);
+  const taskB = db.get(`SELECT * FROM maintenance_tasks WHERE equipment_id=? AND status='pending'`, [b.id]);
+
+  const photo = makePhoto(db, alice.id, 22);
+  submitCompletion(db, { taskId: taskA.id, employee: alice, photoId: photo.id });
+
+  // Reach past the application check straight at the constraint.
+  db.run('UPDATE photos SET claimed = 0 WHERE id = ?', [photo.id]);
+  assert.throws(() => submitCompletion(db, { taskId: taskB.id, employee: alice, photoId: photo.id }),
+    (e) => e.code === 'PHOTO_REUSED');
+  assert.equal(db.get(`SELECT status FROM maintenance_tasks WHERE id = ?`, [taskB.id]).status, 'pending',
+    'and the losing task is left open');
+});

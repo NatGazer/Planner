@@ -55,12 +55,20 @@ function open(photo) {
   return fs.readFileSync(file);
 }
 
-/** Best-effort cleanup of a draft photo that never became a completion. */
+/**
+ * Discard a draft photo that never became a completion.
+ *
+ * The row delete is guarded on `claimed = 0`, and the bytes are removed ONLY
+ * if that delete actually matched. Between reading the row and deleting it a
+ * completion can claim the photo; deleting the file on that path would leave
+ * a permanent completion record pointing at bytes that no longer exist.
+ */
 function discardUnclaimed(db, photoId) {
   const photo = db.get('SELECT * FROM photos WHERE id = ? AND claimed = 0', [photoId]);
   if (!photo) return false;
-  db.run('DELETE FROM photos WHERE id = ? AND claimed = 0', [photoId]);
-  try { fs.rmSync(path.join(config.photoDir, path.basename(photo.storage_key)), { force: true }); } catch { /* ignore */ }
+  const { changes } = db.run('DELETE FROM photos WHERE id = ? AND claimed = 0', [photoId]);
+  if (changes !== 1) return false;      // somebody claimed it first; leave the bytes alone
+  try { fs.rmSync(path.join(config.photoDir, path.basename(photo.storage_key)), { force: true }); } catch { /* already gone */ }
   return true;
 }
 

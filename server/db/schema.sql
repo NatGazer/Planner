@@ -101,7 +101,9 @@ CREATE TABLE IF NOT EXISTS completions (
   employee_id         TEXT NOT NULL REFERENCES employees (id),
   completed_at        TEXT NOT NULL,               -- server-recorded UTC instant
   completed_on        TEXT NOT NULL,               -- business-local calendar date
-  photo_id            TEXT NOT NULL REFERENCES photos (id),
+  -- UNIQUE, not merely checked in code: a photo is evidence for exactly one
+  -- completion, and that should hold whatever calls the database.
+  photo_id            TEXT NOT NULL UNIQUE REFERENCES photos (id),
   comment             TEXT,
   -- Snapshot ---------------------------------------------------------------
   snap_equipment_id   TEXT NOT NULL,
@@ -118,6 +120,10 @@ CREATE TABLE IF NOT EXISTS completions (
   snap_due_date       TEXT NOT NULL,
   snap_employee_name  TEXT NOT NULL
 );
+-- The inline UNIQUE above covers a freshly created table; this covers a
+-- database that already existed, since CREATE TABLE IF NOT EXISTS will not
+-- alter one. Both express the same rule: one photo, one completion.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_completion_photo ON completions (photo_id);
 CREATE INDEX IF NOT EXISTS idx_completions_equipment ON completions (snap_equipment_id);
 CREATE INDEX IF NOT EXISTS idx_completions_time ON completions (completed_at);
 
