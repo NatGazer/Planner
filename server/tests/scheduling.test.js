@@ -289,3 +289,23 @@ test('a nonsense limit or offset is ignored, not bound into the query', () => {
   const sane = queries.completionHistory(db, { limit: 'banana' });
   assert.ok(sane.items.length <= 200);
 });
+
+test('counts are exact even when the list they describe was cut', () => {
+  const type = catalog.createType(db, { name: 'Fleet' }, admin);
+  const rule = catalog.createRule(db, { typeId: type.id, title: 'Weekly look', intervalValue: 1, intervalUnit: 'weeks' }, admin, { today: TODAY }).rule;
+  for (let i = 0; i < 30; i += 1) {
+    catalog.createEquipment(db, { code: `FLEET-${String(i).padStart(3, '0')}`, name: `Van ${i}`, typeId: type.id }, admin, { today: TODAY });
+  }
+  const counts = queries.outstandingCounts(db, { today: TODAY, ruleId: rule.id });
+  assert.equal(counts.total, 30);
+
+  const cut = queries.outstandingTasks(db, { today: TODAY, ruleId: rule.id, limit: 5 });
+  assert.equal(cut.length, 5);
+  assert.equal(cut.truncated, true);
+
+  // The count describes the work, not the page — otherwise it would be a lie
+  // on exactly the estate where the number matters most.
+  const stillCounts = queries.outstandingCounts(db, { today: TODAY, ruleId: rule.id });
+  assert.equal(stillCounts.total, 30);
+  assert.equal(stillCounts.soon + stillCounts.later + stillCounts.today + stillCounts.overdue, 30);
+});

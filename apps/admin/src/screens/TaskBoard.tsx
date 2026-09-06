@@ -186,6 +186,17 @@ export function TaskBoard() {
         </motion.div>
       )}
 
+      {list.data?.truncated ? (
+        <div className="note-strip">
+          <Icon name="info" size={15} />
+          <p>
+            Showing the <strong>{list.data.shown}</strong> most urgent of{' '}
+            <strong>{counts?.total}</strong> outstanding tasks. Narrow it with a type,
+            an equipment item or a search to see the rest.
+          </p>
+        </div>
+      ) : null}
+
       <RescheduleDialog
         task={rescheduling}
         today={list.data?.today ?? ''}

@@ -10,6 +10,8 @@ import type { Completion, Task } from '@ui/lib/types';
 export interface TaskListResponse {
   today: string;
   timezone: string;
+  /** True when the list was cut at its ceiling — see the note in the footer. */
+  truncated?: boolean;
   counts: { total: number; overdue: number; today: number; soon: number };
   tasks: Task[];
 }

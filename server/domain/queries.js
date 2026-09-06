@@ -69,7 +69,11 @@ const ACTIONABLE = `t.status = 'pending' AND e.active = 1 AND e.archived = 0 AND
  * Outstanding work, ascending by due date — which puts overdue first by
  * construction, since an overdue date is simply an earlier date.
  */
-function outstandingTasks(db, { today, includeHidden = false, equipmentId = null, typeId = null, ruleId = null, bucket = null, on = null, search = null, limit = 500 }) {
+/**
+ * The WHERE clause shared by the outstanding list and its counts, so the two
+ * can never disagree about what "outstanding" means.
+ */
+function taskFilter({ today, includeHidden = false, equipmentId = null, typeId = null, ruleId = null, bucket = null, on = null, search = null }) {
   const where = [includeHidden ? `t.status = 'pending'` : ACTIONABLE];
   const params = [];
   if (equipmentId) { where.push('t.equipment_id = ?'); params.push(equipmentId); }
@@ -86,15 +90,57 @@ function outstandingTasks(db, { today, includeHidden = false, equipmentId = null
     const q = likeTerm(search);
     params.push(q, q, q, q);
   }
-  // One row over the cap tells the caller the list was cut, so nothing is ever
-  // silently missing from a list somebody is working from.
-  const cap = bounded(limit, 500, 1, 5000);
-  const sql = `${TASK_SELECT} WHERE ${where.join(' AND ')}
-               ORDER BY t.due_date ASC, e.code ASC, r.title ASC LIMIT ?`;
-  const rows = db.all(sql, [...params, cap + 1]);
-  const shaped = rows.slice(0, cap).map((r) => taskShape(r, today));
+  return { clause: where.join(' AND '), params };
+}
+
+/**
+ * Outstanding work, ascending by due date — which puts overdue first by
+ * construction, since an overdue date is simply an earlier date.
+ *
+ * One row past the ceiling is fetched so the caller can be told the list was
+ * cut, rather than a list quietly missing work somebody needs to do.
+ */
+function outstandingTasks(db, options) {
+  const { clause, params } = taskFilter(options);
+  const cap = bounded(options.limit, 500, 1, 5000);
+  const rows = db.all(
+    `${TASK_SELECT} WHERE ${clause} ORDER BY t.due_date ASC, e.code ASC, r.title ASC LIMIT ?`,
+    [...params, cap + 1],
+  );
+  const shaped = rows.slice(0, cap).map((r) => taskShape(r, options.today));
   shaped.truncated = rows.length > cap;
   return shaped;
+}
+
+/**
+ * How the outstanding work divides by urgency, ignoring any due-status filter.
+ *
+ * Counted in SQL, never by materialising the rows: a count that was capped by
+ * a page size would be a lie on any estate large enough for the cap to matter,
+ * which is exactly the estate where the number matters most.
+ */
+function outstandingCounts(db, options) {
+  const { clause, params } = taskFilter({ ...options, bucket: null, on: null });
+  const { today } = options;
+  const row = db.get(`
+    SELECT COUNT(*) AS total,
+           SUM(CASE WHEN t.due_date <  ? THEN 1 ELSE 0 END) AS overdue,
+           SUM(CASE WHEN t.due_date =  ? THEN 1 ELSE 0 END) AS due_today,
+           SUM(CASE WHEN t.due_date >  ? AND t.due_date <= ? THEN 1 ELSE 0 END) AS soon,
+           SUM(CASE WHEN t.due_date >  ? THEN 1 ELSE 0 END) AS later
+      FROM maintenance_tasks t
+      JOIN equipment e ON e.id = t.equipment_id
+      JOIN equipment_types ty ON ty.id = e.type_id
+      JOIN maintenance_rules r ON r.id = t.rule_id
+     WHERE ${clause}`,
+    [today, today, today, addDays(today, 7), addDays(today, 7), ...params]);
+  return {
+    total: row?.total ?? 0,
+    overdue: row?.overdue ?? 0,
+    today: row?.due_today ?? 0,
+    soon: row?.soon ?? 0,
+    later: row?.later ?? 0,
+  };
 }
 
 function taskById(db, id, today) {
@@ -290,18 +336,6 @@ function dashboard(db, { today }) {
     nextUp,
     recentCompletions: recent,
   };
-}
-
-/**
- * How the outstanding work divides by urgency, ignoring any due-status filter.
- * The tab that says "Overdue 13" has to keep saying 13 while you are looking
- * at the overdue list — a count computed from the filtered result would read
- * "Overdue 13 · Today 0" the moment you selected Overdue.
- */
-function outstandingCounts(db, { today, includeHidden = false, equipmentId = null, typeId = null, ruleId = null, search = null }) {
-  const all = outstandingTasks(db, { today, includeHidden, equipmentId, typeId, ruleId, search, limit: 5000 });
-  const of = (b) => all.filter((t) => t.due.bucket === b).length;
-  return { total: all.length, overdue: of('overdue'), today: of('today'), soon: of('soon'), later: of('later') };
 }
 
 module.exports = { outstandingTasks, outstandingCounts, taskById, taskShape, completionHistory, completionById, completionShape, dashboard, TASK_SELECT, ACTIONABLE };

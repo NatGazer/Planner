@@ -178,6 +178,13 @@ export function TaskList() {
           })
         )}
 
+        {list.data?.truncated ? (
+          <p className="w-truncated">
+            Showing the most urgent {list.data.tasks.length} of{' '}
+            {plural(list.data.counts.total, 'job')}. Search to find a specific one.
+          </p>
+        ) : null}
+
         {list.data ? (
           <p className="w-foot">
             {plural(list.data.counts.total, 'job')} outstanding · times shown in {list.data.timezone.replace('_', ' ')}

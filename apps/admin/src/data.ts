@@ -22,6 +22,8 @@ export interface TaskListResponse {
   /** Across the whole list, ignoring the due-status tab. */
   counts: { total: number; overdue: number; today: number; soon: number; later: number };
   shown: number;
+  /** True when the list hit its ceiling — the counts above are still exact. */
+  truncated?: boolean;
 }
 
 export interface EquipmentDetailResponse {

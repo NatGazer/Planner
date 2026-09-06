@@ -245,6 +245,13 @@ body { overscroll-behavior-y: none; }
 .w-card__date { font-size: var(--t-11); white-space: nowrap; }
 
 .w-foot { font-size: var(--t-12); color: var(--text-low); text-align: center; padding: var(--s-4) 0 0; }
+.w-truncated {
+  font-size: var(--t-13); color: var(--text-mid); line-height: 1.5;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--status-soon-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--status-soon) 22%, transparent);
+}
 
 /* -------------------------------------------------------------- detail --- */
 
